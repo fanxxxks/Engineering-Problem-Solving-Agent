@@ -1,0 +1,308 @@
+[
+  {
+    "id": "physics-kinematics-1",
+    "subject": "physics",
+    "topic": "uniform_acceleration",
+    "keywords": ["velocity", "acceleration", "time", "kinematics"],
+    "formula": "v = v0 + a t",
+    "conditions": ["constant acceleration", "one-dimensional motion"],
+    "common_traps": ["sign convention", "using the wrong initial velocity"]
+  },
+  {
+    "id": "physics-kinematics-2",
+    "subject": "physics",
+    "topic": "uniform_acceleration",
+    "keywords": ["displacement", "time", "kinematics"],
+    "formula": "s = v0 t + 1/2 a t^2",
+    "conditions": ["constant acceleration", "known time interval"],
+    "common_traps": ["forgetting the 1/2 factor", "mixing v and v0"]
+  },
+  {
+    "id": "physics-newton-1",
+    "subject": "physics",
+    "topic": "newton_second_law",
+    "keywords": ["force", "mass", "acceleration", "newton"],
+    "formula": "F = m a",
+    "conditions": ["net force along a direction"],
+    "common_traps": ["component sign errors", "using total force instead of net force"]
+  },
+  {
+    "id": "physics-momentum-1",
+    "subject": "physics",
+    "topic": "momentum_impulse",
+    "keywords": ["momentum", "impulse", "force", "time"],
+    "formula": "p = m v,  J = F Δt = Δp",
+    "conditions": ["constant force or averaged force"],
+    "common_traps": ["mixing impulse and momentum", "missing vector direction"]
+  },
+  {
+    "id": "physics-energy-1",
+    "subject": "physics",
+    "topic": "work_energy",
+    "keywords": ["energy", "work", "speed", "kinetic"],
+    "formula": "W = ΔK = 1/2 m (v^2 - v0^2)",
+    "conditions": ["work-energy relation applies"],
+    "common_traps": ["using velocity difference instead of squared difference"]
+  },
+  {
+    "id": "physics-energy-2",
+    "subject": "physics",
+    "topic": "power",
+    "keywords": ["power", "work", "time"],
+    "formula": "P = W / t",
+    "conditions": ["average power"],
+    "common_traps": ["using instantaneous power formula when not needed"]
+  },
+  {
+    "id": "physics-circular-1",
+    "subject": "physics",
+    "topic": "circular_motion",
+    "keywords": ["circular", "centripetal", "velocity", "radius"],
+    "formula": "a_c = v^2 / r",
+    "conditions": ["uniform circular motion"],
+    "common_traps": ["confusing tangential and centripetal acceleration"]
+  },
+  {
+    "id": "physics-units-1",
+    "subject": "physics",
+    "topic": "unit_consistency",
+    "keywords": ["unit", "dimension", "force", "energy"],
+    "formula": "Check SI dimensions before solving",
+    "conditions": ["always applicable"],
+    "common_traps": ["mismatched units", "mixing N and J"]
+  },
+  {
+    "id": "circuits-series-1",
+    "subject": "circuits",
+    "topic": "equivalent_resistance",
+    "keywords": ["series", "resistor", "resistance"],
+    "formula": "R_eq = R1 + R2 + ...",
+    "conditions": ["resistors in series"],
+    "common_traps": ["adding parallel branches as if they were series"]
+  },
+  {
+    "id": "circuits-parallel-1",
+    "subject": "circuits",
+    "topic": "equivalent_resistance",
+    "keywords": ["parallel", "resistor", "resistance"],
+    "formula": "1 / R_eq = 1 / R1 + 1 / R2 + ...",
+    "conditions": ["resistors in parallel"],
+    "common_traps": ["adding resistances directly"]
+  },
+  {
+    "id": "circuits-kcl-1",
+    "subject": "circuits",
+    "topic": "node_analysis",
+    "keywords": ["node", "kcl", "current"],
+    "formula": "sum of currents leaving a node = 0",
+    "conditions": ["nodal analysis"],
+    "common_traps": ["wrong current direction", "missing ground reference"]
+  },
+  {
+    "id": "circuits-kvl-1",
+    "subject": "circuits",
+    "topic": "mesh_analysis",
+    "keywords": ["mesh", "kvl", "voltage"],
+    "formula": "sum of voltage drops around a loop = 0",
+    "conditions": ["mesh analysis"],
+    "common_traps": ["incorrect loop orientation", "shared branch sign errors"]
+  },
+  {
+    "id": "circuits-rc-1",
+    "subject": "circuits",
+    "topic": "first_order_response",
+    "keywords": ["rc", "capacitor", "time constant"],
+    "formula": "tau = RC",
+    "conditions": ["first-order RC transient"],
+    "common_traps": ["using steady-state formula at transient time"]
+  },
+  {
+    "id": "circuits-rl-1",
+    "subject": "circuits",
+    "topic": "first_order_response",
+    "keywords": ["rl", "inductor", "time constant"],
+    "formula": "tau = L / R",
+    "conditions": ["first-order RL transient"],
+    "common_traps": ["wrong initial condition"]
+  },
+  {
+    "id": "circuits-ohm-1",
+    "subject": "circuits",
+    "topic": "ohms_law",
+    "keywords": ["voltage", "current", "resistance"],
+    "formula": "V = I R",
+    "conditions": ["ohmic element"],
+    "common_traps": ["mixing source voltage with branch voltage"]
+  },
+  {
+    "id": "circuits-power-1",
+    "subject": "circuits",
+    "topic": "power",
+    "keywords": ["power", "voltage", "current"],
+    "formula": "P = V I = I^2 R = V^2 / R",
+    "conditions": ["single resistor or element power"],
+    "common_traps": ["using the wrong resistance branch"]
+  },
+  {
+    "id": "circuits-divider-1",
+    "subject": "circuits",
+    "topic": "voltage_divider",
+    "keywords": ["divider", "voltage", "resistor"],
+    "formula": "Vout = Vin * R2 / (R1 + R2)",
+    "conditions": ["two-resistor divider"],
+    "common_traps": ["reversing numerator and denominator"]
+  },
+  {
+    "id": "linalg-det-1",
+    "subject": "linalg",
+    "topic": "determinant",
+    "keywords": ["determinant", "2x2", "matrix"],
+    "formula": "det([[a,b],[c,d]]) = ad - bc",
+    "conditions": ["2x2 matrix"],
+    "common_traps": ["swapping rows without sign change"]
+  },
+  {
+    "id": "linalg-det-2",
+    "subject": "linalg",
+    "topic": "determinant",
+    "keywords": ["determinant", "3x3", "matrix"],
+    "formula": "cofactor expansion or row reduction",
+    "conditions": ["square matrix"],
+    "common_traps": ["sign pattern errors"]
+  },
+  {
+    "id": "linalg-inverse-1",
+    "subject": "linalg",
+    "topic": "inverse",
+    "keywords": ["inverse", "2x2", "matrix"],
+    "formula": "A^-1 = 1/det(A) * [[d,-b],[-c,a]]",
+    "conditions": ["det(A) != 0"],
+    "common_traps": ["inverting singular matrices"]
+  },
+  {
+    "id": "linalg-rank-1",
+    "subject": "linalg",
+    "topic": "rank",
+    "keywords": ["rank", "row reduction", "matrix"],
+    "formula": "rank = number of pivots",
+    "conditions": ["row echelon form"],
+    "common_traps": ["counting zero rows as pivots"]
+  },
+  {
+    "id": "linalg-eigen-1",
+    "subject": "linalg",
+    "topic": "eigenvalues",
+    "keywords": ["eigen", "eigenvalue", "characteristic"],
+    "formula": "det(A - λI) = 0",
+    "conditions": ["square matrix"],
+    "common_traps": ["forgetting multiplicity"]
+  },
+  {
+    "id": "linalg-eigen-2",
+    "subject": "linalg",
+    "topic": "eigenvectors",
+    "keywords": ["eigenvector", "nullspace", "eigen"],
+    "formula": "(A - λI)v = 0",
+    "conditions": ["given an eigenvalue"],
+    "common_traps": ["using the wrong λ"]
+  },
+  {
+    "id": "linalg-system-1",
+    "subject": "linalg",
+    "topic": "linear_system",
+    "keywords": ["system", "linear equations", "matrix"],
+    "formula": "Ax = b",
+    "conditions": ["consistent linear system"],
+    "common_traps": ["dimension mismatch"]
+  },
+  {
+    "id": "linalg-trace-1",
+    "subject": "linalg",
+    "topic": "trace",
+    "keywords": ["trace", "diagonal", "matrix"],
+    "formula": "tr(A) = sum of diagonal entries",
+    "conditions": ["square matrix"],
+    "common_traps": ["using off-diagonal terms"]
+  },
+  {
+    "id": "calculus-diff-1",
+    "subject": "calculus",
+    "topic": "derivative",
+    "keywords": ["derivative", "power rule", "x^2"],
+    "formula": "d/dx x^n = n x^(n-1)",
+    "conditions": ["polynomial powers"],
+    "common_traps": ["forgetting the exponent drops by one"]
+  },
+  {
+    "id": "calculus-diff-2",
+    "subject": "calculus",
+    "topic": "chain_rule",
+    "keywords": ["derivative", "chain rule", "composition"],
+    "formula": "d/dx f(g(x)) = f'(g(x)) g'(x)",
+    "conditions": ["composite functions"],
+    "common_traps": ["missing the outer derivative"]
+  },
+  {
+    "id": "calculus-integral-1",
+    "subject": "calculus",
+    "topic": "integration",
+    "keywords": ["integral", "power rule", "x^2"],
+    "formula": "∫ x^n dx = x^(n+1)/(n+1) + C",
+    "conditions": ["n != -1"],
+    "common_traps": ["forgetting the constant of integration"]
+  },
+  {
+    "id": "calculus-integral-2",
+    "subject": "calculus",
+    "topic": "definite_integral",
+    "keywords": ["integral", "from", "to", "bounds"],
+    "formula": "∫_a^b f(x) dx = F(b) - F(a)",
+    "conditions": ["F is antiderivative of f"],
+    "common_traps": ["swapping upper and lower bounds"]
+  },
+  {
+    "id": "calculus-limit-1",
+    "subject": "calculus",
+    "topic": "limit",
+    "keywords": ["limit", "x ->", "substitution"],
+    "formula": "If continuous, lim x→a f(x) = f(a)",
+    "conditions": ["continuity at the point"],
+    "common_traps": ["direct substitution on discontinuous forms"]
+  },
+  {
+    "id": "calculus-limit-2",
+    "subject": "calculus",
+    "topic": "limit",
+    "keywords": ["limit", "rational", "factor"],
+    "formula": "factor or rationalize to remove indeterminate forms",
+    "conditions": ["indeterminate forms"],
+    "common_traps": ["cancelling invalid terms"]
+  },
+  {
+    "id": "calculus-critical-1",
+    "subject": "calculus",
+    "topic": "critical_points",
+    "keywords": ["critical", "derivative", "extrema"],
+    "formula": "critical points satisfy f'(x)=0 or undefined",
+    "conditions": ["interior points of the domain"],
+    "common_traps": ["forgetting undefined derivative cases"]
+  },
+  {
+    "id": "calculus-taylor-1",
+    "subject": "calculus",
+    "topic": "taylor_series",
+    "keywords": ["taylor", "series", "expansion"],
+    "formula": "f(x)=Σ f^(n)(a)/n! (x-a)^n",
+    "conditions": ["smooth function near expansion point"],
+    "common_traps": ["wrong expansion center"]
+  },
+  {
+    "id": "calculus-ftc-1",
+    "subject": "calculus",
+    "topic": "fundamental_theorem",
+    "keywords": ["fundamental theorem", "integral", "derivative"],
+    "formula": "d/dx ∫_a^x f(t) dt = f(x)",
+    "conditions": ["integrand is well-defined"],
+    "common_traps": ["mixing the integration variable"]
+  }
+]

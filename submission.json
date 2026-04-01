@@ -1,0 +1,5 @@
+{
+  "module": "eng_solver_agent.agent",
+  "class_name": "EngineeringSolverAgent",
+  "method_name": "solve"
+}
