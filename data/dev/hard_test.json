@@ -1,0 +1,98 @@
+[
+  {
+    "question_id": "PHY_HARD_001",
+    "type": "数值计算",
+    "difficulty": "困难",
+    "subject": "physics",
+    "question": "一个质量为m的物体从高度h自由落下，考虑空气阻力F=-kv（k为阻力系数，v为速度），求物体落地时的速度。已知m=2kg, h=100m, k=0.5N·s/m, g=9.8m/s²。",
+    "answer": "v_terminal = sqrt(mg/k) = sqrt(2*9.8/0.5) = 6.26 m/s, 实际落地速度约为 6.26 m/s（因为高度足够达到终端速度）"
+  },
+  {
+    "question_id": "PHY_HARD_002",
+    "type": "推导证明",
+    "difficulty": "困难",
+    "subject": "physics",
+    "question": "证明：在有心力场中，质点的运动轨迹是平面曲线，且角动量守恒。并推导比耐公式（Binet's formula）。",
+    "answer": "角动量L = r × p = 常量，证明运动在垂直于L的平面内；比耐公式：d²u/dθ² + u = -F(1/u)/(mh²u²)，其中u=1/r, h=L/m"
+  },
+  {
+    "question_id": "CIR_HARD_001",
+    "type": "数值计算",
+    "difficulty": "困难",
+    "subject": "circuits",
+    "question": "一个RLC串联电路，R=10Ω, L=0.1H, C=100μF，接在电压源v(t)=100cos(1000t) V上。求：(1)电路的阻抗；(2)电流i(t)的稳态表达式；(3)电路的品质因数Q。",
+    "answer": "(1) Z = R + j(ωL - 1/ωC) = 10 + j(100 - 10) = 10 + j90 Ω, |Z| = 90.55Ω; (2) I = V/Z = 100/(10+j90) = 1.1∠-83.7° A, i(t)=1.1cos(1000t-83.7°) A; (3) Q = ωL/R = 10"
+  },
+  {
+    "question_id": "CIR_HARD_002",
+    "type": "分析设计",
+    "difficulty": "困难",
+    "subject": "circuits",
+    "question": "设计一个二阶有源低通滤波器，截止频率为1kHz，品质因数Q=0.707。要求：(1)给出电路拓扑结构；(2)计算各元件参数值；(3)推导传递函数。",
+    "answer": "采用Sallen-Key拓扑，传递函数H(s)=ωc²/(s²+ωc/Q·s+ωc²)，其中ωc=2π×1000=6283 rad/s。选择C1=C2=10nF，则R1=R2=1/(ωc×C)=15.9kΩ"
+  },
+  {
+    "question_id": "LINALG_HARD_001",
+    "type": "数值计算",
+    "difficulty": "困难",
+    "subject": "linalg",
+    "question": "给定矩阵A=[[4,2,1],[2,5,3],[1,3,6]]，求：(1)Cholesky分解A=LLᵀ；(2)利用分解求解Ax=b，其中b=[7, 14, 18]ᵀ；(3)计算A的条件数。",
+    "answer": "(1) L=[[2,0,0],[1,2,0],[0.5,1.25,2.179]]; (2) 先解Ly=b得y=[3.5, 5.25, 5.46]，再解Lᵀx=y得x=[1, 2, 3]; (3) cond(A)≈15.2"
+  },
+  {
+    "question_id": "LINALG_HARD_002",
+    "type": "推导证明",
+    "difficulty": "困难",
+    "subject": "linalg",
+    "question": "证明奇异值分解(SVD)的存在性：对于任意m×n实矩阵A，存在正交矩阵U(m×m)和V(n×n)，使得A=UΣVᵀ，其中Σ是对角矩阵。并说明SVD与PCA的关系。",
+    "answer": "证明基于AᵀA是对称半正定矩阵，存在特征值分解AᵀA=VΛVᵀ，令σi=√λi，ui=Avi/σi，则A=UΣVᵀ。PCA通过对数据矩阵进行SVD，取前k个主成分实现降维"
+  },
+  {
+    "question_id": "CALC_HARD_001",
+    "type": "数值计算",
+    "difficulty": "困难",
+    "subject": "calculus",
+    "question": "计算三重积分∭_V (x²+y²+z²) dxdydz，其中V是由球面x²+y²+z²=4和平面z=1所围成的区域（球冠部分）。",
+    "answer": "使用球坐标：x=rsinφcosθ, y=rsinφsinθ, z=rcosφ。积分限：r∈[0,2], θ∈[0,2π], φ∈[0,arccos(1/2)=π/3]。积分=∫∫∫ r²·r²sinφ drdφdθ = 2π × (32/5) × (1-0.5) = 32π/5 ≈ 20.11"
+  },
+  {
+    "question_id": "CALC_HARD_002",
+    "type": "推导证明",
+    "difficulty": "困难",
+    "subject": "calculus",
+    "question": "利用格林公式证明：对于平面单连通区域D上的任意光滑闭曲线C，有∮_C Pdx+Qdy = ∬_D (∂Q/∂x - ∂P/∂y) dxdy。并应用该公式计算∮_C (x²-y)dx + (y²+x)dy，其中C是圆x²+y²=4。",
+    "answer": "格林公式证明基于散度定理在二维的推广。应用：P=x²-y, Q=y²+x, ∂Q/∂x=1, ∂P/∂y=-1，所以积分=∬_D (1-(-1))dxdy = 2×面积=2×4π=8π"
+  },
+  {
+    "question_id": "PHY_HARD_003",
+    "type": "综合分析",
+    "difficulty": "困难",
+    "subject": "physics",
+    "question": "一个质量为M、半径为R的均匀圆盘在水平面上无滑动滚动，圆盘中心连接一个劲度系数为k的弹簧（另一端固定）。建立系统的运动方程，求小振动的周期，并分析系统的能量守恒。",
+    "answer": "设圆盘中心位移为x，转动惯量I=MR²/2。无滑动条件：x=Rθ。动能T=Mẋ²/2+Iω²/2=3Mẋ²/4，势能U=kx²/2。运动方程：3Mẍ/2+kx=0，周期T=2π√(3M/2k)。机械能E=T+U守恒"
+  },
+  {
+    "question_id": "CIR_HARD_003",
+    "type": "综合分析",
+    "difficulty": "困难",
+    "subject": "circuits",
+    "question": "一个非线性电路包含一个二极管（I-V特性为I=Is(exp(V/nVT)-1)）和一个电阻R串联，接在直流电压源Vdc上。建立电路方程，用牛顿-拉夫逊法求解二极管电压VD的迭代公式，并计算当Vdc=5V, R=1kΩ, Is=1nA, n=1, VT=26mV时的VD和电流I。",
+    "answer": "电路方程：Vdc = I·R + VD = IsR(exp(VD/nVT)-1) + VD。牛顿迭代：VD(k+1)=VD(k)-f(VD(k))/f'(VD(k))，其中f(VD)=IsR(exp(VD/nVT)-1)+VD-Vdc。数值解：VD≈0.72V, I≈4.28mA"
+  },
+  {
+    "question_id": "LINALG_HARD_003",
+    "type": "数值计算",
+    "difficulty": "困难",
+    "subject": "linalg",
+    "question": "用幂法和反幂法求矩阵A=[[5,2,1],[2,3,1],[1,1,2]]的按模最大和最小特征值及对应的特征向量，迭代3步，初始向量取[1,1,1]ᵀ。",
+    "answer": "幂法（最大特征值）：λ₁≈6.45, v₁≈[0.88, 0.44, 0.19]ᵀ。反幂法（最小特征值）：先对A求逆或用(A-μI)⁻¹，λ₃≈1.13, v₃≈[0.19, -0.44, 0.88]ᵀ"
+  },
+  {
+    "question_id": "CALC_HARD_003",
+    "type": "综合分析",
+    "difficulty": "困难",
+    "subject": "calculus",
+    "question": "求解偏微分方程：∂u/∂t = D·∂²u/∂x²（一维热传导方程），初始条件u(x,0)=sin(πx/L)，边界条件u(0,t)=u(L,t)=0。使用分离变量法求解析解，并讨论解的物理意义。",
+    "answer": "设u(x,t)=X(x)T(t)，分离得X''/X=T'/(DT)=-λ。解得Xn(x)=sin(nπx/L), Tn(t)=exp(-Dn²π²t/L²)。由初始条件，n=1。解：u(x,t)=sin(πx/L)exp(-Dπ²t/L²)。物理意义：温度随时间指数衰减，空间呈正弦分布"
+  }
+]

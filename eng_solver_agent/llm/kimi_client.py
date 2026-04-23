@@ -46,6 +46,7 @@ class KimiConfig:
     endpoint_path: str
     request_timeout_seconds: float
     max_retry: int
+    temperature: float
 
 
 class KimiClient:
@@ -57,6 +58,7 @@ class KimiClient:
         endpoint_path: str | None = None,
         request_timeout_seconds: float | None = None,
         max_retry: int | None = None,
+        temperature: float | None = None,
         opener: Callable[..., Any] | None = None,
     ) -> None:
         self.config = KimiConfig(
@@ -68,11 +70,13 @@ class KimiClient:
                 request_timeout_seconds if request_timeout_seconds is not None else os.getenv("REQUEST_TIMEOUT_SECONDS", "30")
             ),
             max_retry=_to_int(max_retry if max_retry is not None else os.getenv("MAX_RETRY", "1")),
+            temperature=_to_float(temperature if temperature is not None else os.getenv("KIMI_TEMPERATURE", "1.0")),
         )
         self._opener = opener or urllib_request.urlopen
 
-    def chat(self, messages: list[dict[str, Any]], temperature: float = 0.0) -> str:
-        payload = self._build_payload(messages, temperature=temperature)
+    def chat(self, messages: list[dict[str, Any]], temperature: float | None = None) -> str:
+        temp = temperature if temperature is not None else self.config.temperature
+        payload = self._build_payload(messages, temperature=temp)
         response = self._request_json(payload)
         content = self._extract_content(response)
         if not content or not str(content).strip():
@@ -84,12 +88,16 @@ class KimiClient:
     def chat_json(
         self,
         messages: list[dict[str, Any]],
-        temperature: float = 0.0,
+        temperature: float | None = None,
         required_keys: Iterable[str] | None = None,
     ) -> dict[str, Any]:
         content = self.chat(messages, temperature=temperature)
+        
+        # Try to extract JSON from markdown code blocks
+        cleaned_content = self._extract_json_from_markdown(content)
+        
         try:
-            data = json.loads(content)
+            data = json.loads(cleaned_content)
         except json.JSONDecodeError as exc:
             raise ValueError("model response is not valid JSON") from exc
         if not isinstance(data, dict):
@@ -98,6 +106,31 @@ class KimiClient:
         if missing:
             raise ValueError(f"model response missing required keys: {missing}")
         return data
+    
+    def _extract_json_from_markdown(self, content: str) -> str:
+        """Extract JSON content from markdown code blocks."""
+        import re
+        
+        # Try to find JSON in markdown code blocks
+        patterns = [
+            r'```json\s*\n(.*?)\n```',  # ```json ... ```
+            r'```\s*\n(.*?)\n```',       # ``` ... ```
+            r'`(.*?)`',                   # `...`
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, content, re.DOTALL)
+            if match:
+                extracted = match.group(1).strip()
+                # Verify it's valid JSON
+                try:
+                    json.loads(extracted)
+                    return extracted
+                except json.JSONDecodeError:
+                    continue
+        
+        # If no markdown blocks found or none contain valid JSON, return original
+        return content.strip()
 
     def _build_payload(self, messages: list[dict[str, Any]], temperature: float) -> dict[str, Any]:
         self._validate_messages(messages)

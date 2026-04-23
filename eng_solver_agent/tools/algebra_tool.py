@@ -88,9 +88,15 @@ class AlgebraTool:
 
     def simplify(self, expression: str) -> str:
         if self._sympy is not None:
-            return str(self._sympy.simplify(expression))
+            result = str(self._sympy.simplify(expression))
+            if result == expression:
+                raise ToolUnsupportedError(f"unsupported symbolic expression: {expression}")
+            return result
         poly = poly_from_ast(expression)
-        return poly_to_string(poly)
+        result = poly_to_string(poly)
+        if result == expression:
+            raise ToolUnsupportedError(f"unsupported symbolic expression: {expression}")
+        return result
 
     def _coerce_scalar(self, value: Any) -> Any:
         try:

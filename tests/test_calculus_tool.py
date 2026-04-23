@@ -1,4 +1,4 @@
-from eng_solver_agent.tools._math_support import ToolUnsupportedError
+from eng_solver_agent.tools._math_support import ToolUnsupportedError, load_sympy
 from eng_solver_agent.tools.calculus_tool import CalculusTool
 from tests._helpers import approx_equal, assert_raises
 
@@ -26,6 +26,8 @@ def test_calculus_tool_critical_points_and_taylor_series() -> None:
 
 
 def test_calculus_tool_reports_unsupported_symbolic_input_without_sympy() -> None:
+    if load_sympy() is not None:
+        return
     tool = CalculusTool()
 
     assert_raises(ToolUnsupportedError, tool.diff, "sin(x)")
