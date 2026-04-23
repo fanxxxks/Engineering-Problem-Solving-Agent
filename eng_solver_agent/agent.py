@@ -537,12 +537,12 @@ class EngineeringSolverAgent:
 
     def _extract_rlc_values(self, prompt: str) -> tuple[float, float] | None:
         c_match = re.search(
-            r"(?:^|[\s,，;；])c\s*=\s*(-?[0-9]+(?:\.[0-9]+)?)\s*([μmunpk]?)(?:f|法拉)",
+            r"(?:^|[\s,，;；])c\s*=\s*([0-9]+(?:\.[0-9]+)?)\s*([μmunpk]?)(?:f|法拉)",
             prompt,
             flags=re.IGNORECASE,
         )
         l_match = re.search(
-            r"(?:^|[\s,，;；])l\s*=\s*(-?[0-9]+(?:\.[0-9]+)?)\s*([μmunpk]?)(?:h|亨)",
+            r"(?:^|[\s,，;；])l\s*=\s*([0-9]+(?:\.[0-9]+)?)\s*([μmunpk]?)(?:h|亨)",
             prompt,
             flags=re.IGNORECASE,
         )
