@@ -29,3 +29,9 @@ def test_router_detects_chinese_calculus_prompt() -> None:
     router = QuestionRouter()
 
     assert router.route({"question_id": "CAL_001", "question": "计算定积分并求极限。"}) == "calculus"
+
+
+def test_router_detects_chinese_circuit_prompt() -> None:
+    router = QuestionRouter()
+
+    assert router.route({"question_id": "CIR_001", "question": "某电路求静态电阻与动态电阻。"}) == "circuits"

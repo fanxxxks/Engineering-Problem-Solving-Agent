@@ -155,3 +155,45 @@ def test_calculus_validation_style_proof_question_gets_dependency_warning_answer
             os.environ.pop("KIMI_BASE_URL", None)
         else:
             os.environ["KIMI_BASE_URL"] = old_base_url
+
+
+def test_circuit_validation_style_nonlinear_resistor_question() -> None:
+    old_base_url = os.environ.get("KIMI_BASE_URL")
+    try:
+        os.environ.pop("KIMI_BASE_URL", None)
+        agent = EngineeringSolverAgent()
+        result = agent.solve_one(
+            {
+                "question_id": "CIR_001",
+                "type": "填空题",
+                "question": "某非线性电阻的伏安特性为 u = i^2 + 2i，u、i 取关联参考方向。当 i = 1 A 时，求其静态电阻与动态电阻。",
+            }
+        )
+        assert result["answer"] == '{"dynamic_resistance":4.0,"static_resistance":3.0}'
+        assert "工具计算" in result["reasoning_process"]
+    finally:
+        if old_base_url is None:
+            os.environ.pop("KIMI_BASE_URL", None)
+        else:
+            os.environ["KIMI_BASE_URL"] = old_base_url
+
+
+def test_circuit_validation_style_rlc_underdamped_range_question() -> None:
+    old_base_url = os.environ.get("KIMI_BASE_URL")
+    try:
+        os.environ.pop("KIMI_BASE_URL", None)
+        agent = EngineeringSolverAgent()
+        result = agent.solve_one(
+            {
+                "question_id": "CIR_002",
+                "type": "填空题",
+                "question": "在 RLC 串联二阶电路中，C = 1 μF，L = 10 mH。使该电路呈欠阻尼状态的 R 值范围为______。",
+            }
+        )
+        assert result["answer"] == '{"lower_exclusive":0.0,"upper_exclusive":200.0}'
+        assert "工具计算" in result["reasoning_process"]
+    finally:
+        if old_base_url is None:
+            os.environ.pop("KIMI_BASE_URL", None)
+        else:
+            os.environ["KIMI_BASE_URL"] = old_base_url

@@ -37,3 +37,15 @@ def test_circuit_tool_mesh_and_first_order_response() -> None:
     assert approx_equal(response["tau"], 6.0)
     assert response["value"] < 5.0
     assert response["value"] > 1.0
+
+
+def test_circuit_tool_nonlinear_resistor_and_rlc_underdamped_range() -> None:
+    tool = CircuitTool()
+
+    nonlinear = tool.nonlinear_resistor_static_dynamic_resistance(current=1.0)
+    assert approx_equal(nonlinear["static_resistance"], 3.0)
+    assert approx_equal(nonlinear["dynamic_resistance"], 4.0)
+
+    r_range = tool.rlc_series_underdamped_resistance_range(inductance=10e-3, capacitance=1e-6)
+    assert approx_equal(r_range["lower_exclusive"], 0.0)
+    assert approx_equal(r_range["upper_exclusive"], 200.0)

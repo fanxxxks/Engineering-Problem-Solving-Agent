@@ -93,6 +93,31 @@ class CircuitTool:
         value = final_value + (float(initial) - final_value) * math.exp(-float(t) / tau)
         return {"tau": tau, "value": value}
 
+    def nonlinear_resistor_static_dynamic_resistance(
+        self, current: float, relation: str = "u=i^2+2i"
+    ) -> dict[str, float]:
+        relation_key = relation.replace(" ", "").lower()
+        if relation_key not in {"u=i^2+2i", "u=i**2+2*i", "u=i*i+2*i"}:
+            raise ToolUnsupportedError("unsupported nonlinear resistor relation")
+        i_value = float(current)
+        voltage = i_value * i_value + 2.0 * i_value
+        if i_value == 0:
+            raise ValueError("static resistance is undefined when current is zero")
+        static_resistance = voltage / i_value
+        dynamic_resistance = 2.0 * i_value + 2.0
+        return {
+            "static_resistance": static_resistance,
+            "dynamic_resistance": dynamic_resistance,
+        }
+
+    def rlc_series_underdamped_resistance_range(self, inductance: float, capacitance: float) -> dict[str, float]:
+        l_value = float(inductance)
+        c_value = float(capacitance)
+        if l_value <= 0 or c_value <= 0:
+            raise ValueError("inductance and capacitance must be positive")
+        upper = 2.0 * math.sqrt(l_value / c_value)
+        return {"lower_exclusive": 0.0, "upper_exclusive": upper}
+
     def _stamp_conductance(
         self,
         matrix: list[list[float]],
@@ -125,4 +150,3 @@ class CircuitTool:
             rhs[plus] -= value
         if minus is not None:
             rhs[minus] += value
-

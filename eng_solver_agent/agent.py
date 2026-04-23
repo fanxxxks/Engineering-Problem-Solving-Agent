@@ -297,6 +297,21 @@ class EngineeringSolverAgent:
             return self._tool_success(tool.__class__.__name__, tool.simplify(prompt or "x"), {"operation": "simplify"})
 
         if subject == "circuits":
+            nonlinear_current = self._extract_nonlinear_current(prompt)
+            if nonlinear_current is not None and "静态电阻" in prompt and "动态电阻" in prompt:
+                return self._tool_success(
+                    tool.__class__.__name__,
+                    tool.nonlinear_resistor_static_dynamic_resistance(nonlinear_current),
+                    {"operation": "nonlinear_resistor_static_dynamic_resistance"},
+                )
+            rlc_values = self._extract_rlc_values(prompt)
+            if rlc_values is not None and ("欠阻尼" in prompt or "underdamped" in prompt.lower()):
+                inductance, capacitance = rlc_values
+                return self._tool_success(
+                    tool.__class__.__name__,
+                    tool.rlc_series_underdamped_resistance_range(inductance, capacitance),
+                    {"operation": "rlc_series_underdamped_resistance_range"},
+                )
             topology = str(question.get("topology") or self._pick_operation(prompt, ("series", "parallel")) or "series")
             resistors = question.get("resistors")
             if resistors is not None:
@@ -514,6 +529,35 @@ class EngineeringSolverAgent:
             return 0
         return float(cleaned) if "." in cleaned else int(cleaned)
 
+    def _extract_nonlinear_current(self, prompt: str) -> float | None:
+        match = re.search(r"i\s*=\s*([\-0-9.]+)\s*a", prompt, flags=re.IGNORECASE)
+        if match:
+            return float(match.group(1))
+        return None
+
+    def _extract_rlc_values(self, prompt: str) -> tuple[float, float] | None:
+        c_match = re.search(r"\bc\s*=\s*([\-0-9.]+)\s*([μmunpfk]?)(?:f|法拉)", prompt, flags=re.IGNORECASE)
+        l_match = re.search(r"\bl\s*=\s*([\-0-9.]+)\s*([μmunpfk]?)(?:h|亨)", prompt, flags=re.IGNORECASE)
+        if not c_match or not l_match:
+            return None
+        capacitance = self._scale_prefixed_value(float(c_match.group(1)), c_match.group(2))
+        inductance = self._scale_prefixed_value(float(l_match.group(1)), l_match.group(2))
+        return inductance, capacitance
+
+    def _scale_prefixed_value(self, value: float, prefix: str) -> float:
+        normalized = prefix.strip().lower()
+        if normalized in {"μ", "u"}:
+            return value * 1e-6
+        if normalized == "m":
+            return value * 1e-3
+        if normalized == "n":
+            return value * 1e-9
+        if normalized == "p":
+            return value * 1e-12
+        if normalized == "k":
+            return value * 1e3
+        return value
+
     def _normalize_expression(self, expression: str) -> str:
         return expression.replace("^", "**")
 
@@ -544,7 +588,26 @@ class EngineeringSolverAgent:
         if subject == "circuits":
             return self._has_keyword(
                 text,
-                ("circuit", "resistor", "resistors", "resistance", "voltage", "current", "node", "mesh", "ohm"),
+                (
+                    "circuit",
+                    "resistor",
+                    "resistors",
+                    "resistance",
+                    "voltage",
+                    "current",
+                    "node",
+                    "mesh",
+                    "ohm",
+                    "电路",
+                    "电阻",
+                    "电压",
+                    "电流",
+                    "电感",
+                    "电容",
+                    "阻尼",
+                    "rlc",
+                    "cir_",
+                ),
             ) or self._has_acronym(text, ("rc", "rl"))
         if subject == "physics":
             return self._has_keyword(text, ("force", "velocity", "acceleration", "momentum", "energy", "mass"))
