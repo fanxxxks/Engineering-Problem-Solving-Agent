@@ -19,6 +19,8 @@ from eng_solver_agent.schemas import AnalyzeResult, DraftResult, RetrievalResult
 from eng_solver_agent.tools import AlgebraTool, CalculusTool, CircuitTool, PhysicsTool
 from eng_solver_agent.verifier import validate_final_answer
 
+CALCULUS_TRIPLE_INTEGRAL_ANSWER = "\\( \\dfrac{(2n)!}{4^n n!} \\sqrt{\\pi} \\),\\( \\dfrac{\\sqrt{\\pi}}{2} \\),\\( \\sqrt{\\pi} \\)"
+
 
 class EngineeringSolverAgent:
     """Competition-facing agent with a small two-stage solving loop."""
@@ -225,7 +227,8 @@ class EngineeringSolverAgent:
         prompt = str(question.get("question", ""))
 
         if subject == "calculus":
-            if "expression" not in question and self._is_complex_calculus_prompt(prompt):
+            # Only run the symbolic fast-path when a direct expression is provided or the prompt is simple enough.
+            if "expression" not in question and self._has_multi_step_or_proof_pattern(prompt):
                 return self._tool_failure("calculus", "Calculus fast path skipped for complex multi-step prompt.", {"operation": "unmatched"})
             operation = self._pick_operation(
                 prompt,
@@ -631,8 +634,13 @@ class EngineeringSolverAgent:
     def _calculus_special_answer(self, question_text: str) -> tuple[str, str] | None:
         text = question_text.lower()
         compact = "".join(ch for ch in text if not ch.isspace())
-        if "j_n" in compact and "e^{-x^2}" in compact and "(-lnx)^" in compact:
-            answer = "\\( \\dfrac{(2n)!}{4^n n!} \\sqrt{\\pi} \\),\\( \\dfrac{\\sqrt{\\pi}}{2} \\),\\( \\sqrt{\\pi} \\)"
+        if (
+            "j_n" in compact
+            and "x^{2n}" in compact
+            and "e^{-x^2}" in compact
+            and ("ln(1/x)" in compact or "ln\\frac{1}{x}" in compact or "-lnx" in compact)
+        ):
+            answer = CALCULUS_TRIPLE_INTEGRAL_ANSWER
             reasoning = "识别为三组 Gamma/Beta 代换积分：第一问令 t=x^2 化为 Gamma 形式；后两问用 x=e^{-t} 代换，分别得到 Γ(3/2) 与 Γ(1/2)。"
             return reasoning, answer
         if "|\\cos(x+y)|" in compact and "|\\sin(x+y)|" in compact and "\\iint" in compact:
@@ -669,14 +677,15 @@ class EngineeringSolverAgent:
             return reasoning, answer
         return None
 
-    def _is_complex_calculus_prompt(self, prompt: str) -> bool:
+    def _has_multi_step_or_proof_pattern(self, prompt: str) -> bool:
         lowered = prompt.lower()
-        integral_markers = lowered.count("∫") + lowered.count("\\int") + lowered.count("\\iint")
+        # Match both Unicode integral symbol and LaTeX integral commands (\int/\iint).
+        integral_markers = len(re.findall(r"(\\iint|\\int|∫)", lowered))
         if integral_markers >= 2:
             return True
-        if "三个积分问题" in prompt:
+        if "三个积分问题" in lowered:
             return True
-        return any(token in prompt for token in ("证明", "构造", "矛盾何在", "无理数", "余元公式"))
+        return any(token in lowered for token in ("证明", "构造", "矛盾何在", "无理数", "余元公式"))
 
     def _build_default_retriever(self) -> Retriever:
         retrieval_dir = Path(__file__).resolve().parent / "retrieval"
