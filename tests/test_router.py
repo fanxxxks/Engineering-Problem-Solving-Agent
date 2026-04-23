@@ -23,3 +23,9 @@ def test_router_falls_back_to_physics() -> None:
     router = QuestionRouter()
 
     assert router.route({"question": "Explain this engineering problem."}) == "physics"
+
+
+def test_router_detects_chinese_calculus_prompt() -> None:
+    router = QuestionRouter()
+
+    assert router.route({"question_id": "CAL_001", "question": "计算定积分并求极限。"}) == "calculus"

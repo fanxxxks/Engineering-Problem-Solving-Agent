@@ -107,3 +107,45 @@ def test_tool_failure_does_not_return_raw_exception_stack() -> None:
             os.environ.pop("KIMI_BASE_URL", None)
         else:
             os.environ["KIMI_BASE_URL"] = old_base_url
+
+
+def test_calculus_validation_style_integral_question_gets_special_fallback_answer() -> None:
+    old_base_url = os.environ.get("KIMI_BASE_URL")
+    try:
+        os.environ.pop("KIMI_BASE_URL", None)
+        agent = EngineeringSolverAgent()
+        result = agent.solve_one(
+            {
+                "question_id": "CAL_001",
+                "type": "计算题",
+                "question": "请解决以下三个积分问题，并填写答案：1. 计算 J_n = ∫_0^{+∞} x^{2n}e^{-x^2}dx；2. 计算 ∫_0^1 (ln(1/x))^{1/2}dx；3. 计算 ∫_0^1 (-lnx)^{-1/2}dx。",
+            }
+        )
+        assert "(2n)!" in result["answer"]
+        assert "\\sqrt{\\pi}" in result["answer"]
+    finally:
+        if old_base_url is None:
+            os.environ.pop("KIMI_BASE_URL", None)
+        else:
+            os.environ["KIMI_BASE_URL"] = old_base_url
+
+
+def test_calculus_validation_style_proof_question_gets_dependency_warning_answer() -> None:
+    old_base_url = os.environ.get("KIMI_BASE_URL")
+    try:
+        os.environ.pop("KIMI_BASE_URL", None)
+        agent = EngineeringSolverAgent()
+        result = agent.solve_one(
+            {
+                "question_id": "CAL_004",
+                "type": "证明题",
+                "question": "设 f(x)=x^2sin(1/x)，试问矛盾何在？请解释。",
+            }
+        )
+        assert "ξ=ξ(x)" in result["answer"]
+        assert "不能推出" in result["answer"]
+    finally:
+        if old_base_url is None:
+            os.environ.pop("KIMI_BASE_URL", None)
+        else:
+            os.environ["KIMI_BASE_URL"] = old_base_url

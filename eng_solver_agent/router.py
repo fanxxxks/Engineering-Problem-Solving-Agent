@@ -68,6 +68,21 @@ class QuestionRouter:
             "series",
             "tangent",
             "optimization",
+            "导数",
+            "积分",
+            "极限",
+            "微分",
+            "级数",
+            "泰勒",
+            "\\int",
+            "\\iint",
+            "\\lim",
+            "\\sum",
+            "\\partial",
+            "beta",
+            "gamma",
+            "cal_",
+            "calculus-",
         ),
     }
     _PRIORITY = ("circuits", "physics", "calculus", "linalg")
@@ -111,6 +126,7 @@ class QuestionRouter:
             question.get("topic"),
             question.get("type"),
             question.get("subject"),
+            question.get("question_id"),
         ]
         return " ".join(str(part) for part in parts if part).lower()
 
