@@ -1,6 +1,5 @@
-from eng_solver_agent.tools._math_support import ToolUnsupportedError
 from eng_solver_agent.tools.algebra_tool import AlgebraTool
-from tests._helpers import approx_equal, assert_raises
+from tests._helpers import approx_equal
 
 
 def test_algebra_tool_solves_linear_system() -> None:
@@ -33,7 +32,7 @@ def test_algebra_tool_eigenvalues_and_simplify() -> None:
     assert tool.simplify("2*x + 3*x - x") == "4*x"
 
 
-def test_algebra_tool_reports_unsupported_symbolic_input_without_sympy() -> None:
+def test_algebra_tool_supports_symbolic_simplify_with_sympy() -> None:
     tool = AlgebraTool()
 
-    assert_raises(ToolUnsupportedError, tool.simplify, "sin(x)")
+    assert tool.simplify("sin(x)**2 + cos(x)**2") == "1"

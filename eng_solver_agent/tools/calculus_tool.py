@@ -77,7 +77,17 @@ class CalculusTool:
         self._validate_direction(direction)
         if self._sympy is not None:
             symbol = self._sympy.Symbol(var)
-            return float(self._sympy.N(self._sympy.limit(self._sympy.sympify(expression), symbol, point, dir=direction)))
+            dir_map = {"both": "+-", "left": "-", "right": "+"}
+            return float(
+                self._sympy.N(
+                    self._sympy.limit(
+                        self._sympy.sympify(expression),
+                        symbol,
+                        point,
+                        dir=dir_map[direction],
+                    )
+                )
+            )
 
         poly = poly_from_ast(expression, var=var)
         return float(poly_eval(poly, point))
@@ -109,4 +119,3 @@ class CalculusTool:
     def _validate_direction(self, direction: str) -> None:
         if direction not in {"both", "left", "right"}:
             raise ValueError("direction must be 'both', 'left', or 'right'")
-

@@ -23,8 +23,8 @@ def test_load_dev_set_reads_real_dev_file() -> None:
     dev_path = Path(__file__).resolve().parents[1] / "data" / "dev" / "dev.json"
     questions = load_dev_set(dev_path)
 
-    assert len(questions) == 20
-    assert {item["subject"] for item in questions} == {"physics", "circuits", "linalg", "calculus"}
+    assert len(questions) == 2
+    assert [item["question_id"] for item in questions] == ["PHY_001", "CIR_001"]
 
 
 def test_run_local_eval_writes_predictions_and_report() -> None:
