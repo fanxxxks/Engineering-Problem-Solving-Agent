@@ -530,14 +530,22 @@ class EngineeringSolverAgent:
         return float(cleaned) if "." in cleaned else int(cleaned)
 
     def _extract_nonlinear_current(self, prompt: str) -> float | None:
-        match = re.search(r"i\s*=\s*(-?[0-9]+(?:\.[0-9]+)?)\s*(?:a|安)\b", prompt, flags=re.IGNORECASE)
+        match = re.search(r"i\s*=\s*(-?[0-9]+(?:\.[0-9]+)?)\s*(?:a|安)(?:\s|$)", prompt, flags=re.IGNORECASE)
         if match:
             return float(match.group(1))
         return None
 
     def _extract_rlc_values(self, prompt: str) -> tuple[float, float] | None:
-        c_match = re.search(r"\bc\s*=\s*(-?[0-9]+(?:\.[0-9]+)?)\s*([μmunpk]?)(?:f|法拉)", prompt, flags=re.IGNORECASE)
-        l_match = re.search(r"\bl\s*=\s*(-?[0-9]+(?:\.[0-9]+)?)\s*([μmunpk]?)(?:h|亨)", prompt, flags=re.IGNORECASE)
+        c_match = re.search(
+            r"(?:^|[\s,，;；])c\s*=\s*(-?[0-9]+(?:\.[0-9]+)?)\s*([μmunpk]?)(?:f|法拉)",
+            prompt,
+            flags=re.IGNORECASE,
+        )
+        l_match = re.search(
+            r"(?:^|[\s,，;；])l\s*=\s*(-?[0-9]+(?:\.[0-9]+)?)\s*([μmunpk]?)(?:h|亨)",
+            prompt,
+            flags=re.IGNORECASE,
+        )
         if not c_match or not l_match:
             return None
         capacitance = self._scale_prefixed_value(float(c_match.group(1)), c_match.group(2))
