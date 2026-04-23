@@ -229,6 +229,7 @@ class EngineeringSolverAgent:
         if subject == "calculus":
             # Only run the symbolic fast-path when a direct expression is provided or the prompt is simple enough.
             if "expression" not in question and self._has_multi_step_or_proof_pattern(prompt):
+                # Complex prompts are better served by curated fallback templates than by forcing a single-expression tool call.
                 return self._tool_failure("calculus", "Calculus fast path skipped for complex multi-step prompt.", {"operation": "unmatched"})
             operation = self._pick_operation(
                 prompt,
@@ -680,8 +681,8 @@ class EngineeringSolverAgent:
     def _has_multi_step_or_proof_pattern(self, prompt: str) -> bool:
         lowered = prompt.lower()
         # Match both Unicode integral symbol and LaTeX integral commands (\int/\iint).
-        integral_markers = len(re.findall(r"(\\iint|\\int|∫)", lowered))
-        if integral_markers >= 2:
+        integral_count = len(re.findall(r"(\\iint|\\int|∫)", lowered))
+        if integral_count >= 2:
             return True
         if "三个积分问题" in lowered:
             return True

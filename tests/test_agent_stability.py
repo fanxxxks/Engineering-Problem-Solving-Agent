@@ -148,6 +148,7 @@ def test_calculus_validation_style_proof_question_gets_dependency_warning_answer
         )
         assert "ξ=ξ(x)" in result["answer"]
         assert "不能推出" in result["answer"]
+        # Ensure we got the dedicated proof explanation path, not the generic "cannot solve numerically" fallback.
         assert "暂无法可靠给出最终数值" not in result["answer"]
     finally:
         if old_base_url is None:
