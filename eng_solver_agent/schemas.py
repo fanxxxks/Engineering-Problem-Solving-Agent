@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Literal, Optional
 
-from eng_solver_agent.compat import BaseModel, Field
+from pydantic import BaseModel, Field
 
 
 class QuestionInput(BaseModel):

@@ -1,5 +1,6 @@
 {
-  "module": "eng_solver_agent.agent",
   "class_name": "EngineeringSolverAgent",
-  "method_name": "solve"
+  "method_name": "solve",
+  "module_path": "eng_solver_agent.agent",
+  "dependencies": "requirements.txt"
 }

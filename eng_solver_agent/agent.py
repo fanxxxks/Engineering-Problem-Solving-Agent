@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
-import os
+import base64
 import json
+import os
 import re
 from pathlib import Path
 from typing import Any
+
+from openai import OpenAI
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 from eng_solver_agent.adapter import QuestionAdapter
 from eng_solver_agent.config import Settings
@@ -16,10 +20,26 @@ from eng_solver_agent.llm.prompt_builder import build_analyze_messages, build_dr
 from eng_solver_agent.router import QuestionRouter
 from eng_solver_agent.retrieval import Retriever
 from eng_solver_agent.schemas import AnalyzeResult, DraftResult, RetrievalResult
-from eng_solver_agent.tools import AlgebraTool, CalculusTool, CircuitTool, PhysicsTool
+from eng_solver_agent.tools import AlgebraTool, CalculusTool, CircuitTool, PhysicsTool, execute_python_code
 from eng_solver_agent.verifier import validate_final_answer
 
 CALCULUS_TRIPLE_INTEGRAL_ANSWER = "\\( \\dfrac{(2n)!}{4^n n!} \\sqrt{\\pi} \\),\\( \\dfrac{\\sqrt{\\pi}}{2} \\),\\( \\sqrt{\\pi} \\)"
+SYSTEM_PROMPT = """你是一个清华大学的顶级工科教授，精通物理学、电路原理、线性代数和微积分。
+当前任务：解答学生提出的工程问题，并严格按照 JSON 格式输出结果。
+
+【解题规范】
+1. 明确指出题目知识点；
+2. 列出核心公式（可用 LaTeX）；
+3. 给出符号代入过程；
+4. 复杂计算优先给出 Python 代码块交由工具执行；
+5. 最终答案包含数值与单位（若有）。
+
+若已得到结论，仅输出：
+{
+  "reasoning_process": "...",
+  "answer": "..."
+}
+"""
 
 
 class EngineeringSolverAgent:
@@ -34,6 +54,7 @@ class EngineeringSolverAgent:
         verifier: Any | None = None,
         retriever: Any | None = None,
         tool_registry: dict[str, Any] | None = None,
+        openai_client: OpenAI | None = None,
     ) -> None:
         self.settings = settings or Settings.from_env()
         self.adapter = QuestionAdapter()
@@ -42,6 +63,10 @@ class EngineeringSolverAgent:
         self.retriever = retriever if retriever is not None else self._build_default_retriever()
         self.kimi_client = kimi_client if kimi_client is not None else self._build_default_kimi_client()
         self.tools = tool_registry or self._build_default_tools()
+        self.api_key = os.environ.get("MOONSHOT_API_KEY", "your-default-key")
+        self.base_url = os.environ.get("MOONSHOT_BASE_URL", "https://api.moonshot.cn/v1")
+        self.model = os.environ.get("MOONSHOT_MODEL", "moonshot-v1-32k")
+        self.llm_client = openai_client or OpenAI(api_key=self.api_key, base_url=self.base_url)
 
     def solve_one(self, question: dict[str, Any]) -> dict[str, Any]:
         normalized = self._normalize_input(question)
@@ -57,8 +82,105 @@ class EngineeringSolverAgent:
         self.verifier(result)
         return result
 
-    def solve(self, questions: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        return [self.solve_one(question) for question in questions]
+    def solve(self, question_data: dict[str, Any] | list[dict[str, Any]]) -> dict[str, Any] | list[dict[str, Any]]:
+        if isinstance(question_data, list):
+            return [self.solve(item) for item in question_data]
+
+        normalized = self._normalize_input(question_data)
+        question_id = normalized.get("question_id")
+        if not self._can_use_moonshot():
+            return self.solve_one(normalized)
+
+        try:
+            final_json_str = self._run_reasoning_loop(normalized)
+            result = json.loads(final_json_str) if isinstance(final_json_str, str) else dict(final_json_str)
+            return format_submission_item(
+                question_id=question_id,
+                reasoning_process=result.get("reasoning_process", "推导过程缺失"),
+                answer=result.get("answer", "计算失败"),
+            )
+        except Exception as exc:
+            return format_submission_item(
+                question_id=question_id,
+                reasoning_process=f"求解过程中发生异常: {exc}。使用保底策略。",
+                answer="Error",
+            )
+
+    def parse_multimodal_input(self, question_data: dict[str, Any]) -> list[dict[str, Any]]:
+        content = [{"type": "text", "text": str(question_data.get("question", ""))}]
+        image_path = question_data.get("image_path")
+        if not image_path:
+            return content
+        candidate = Path(str(image_path))
+        if not candidate.exists():
+            return content
+        suffix = candidate.suffix.lower()
+        mime = "image/png" if suffix == ".png" else "image/jpeg"
+        raw = candidate.read_bytes()
+        base64_img = base64.b64encode(raw).decode("utf-8")
+        content.append({"type": "image_url", "image_url": {"url": f"data:{mime};base64,{base64_img}"}})
+        return content
+
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
+    def _call_llm(self, messages: list[dict[str, Any]]) -> str:
+        response = self.llm_client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            temperature=0.1,
+            response_format={"type": "json_object"},
+        )
+        content = response.choices[0].message.content
+        return content if content is not None else ""
+
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
+    def _call_llm_text(self, messages: list[dict[str, Any]]) -> str:
+        response = self.llm_client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            temperature=0.1,
+        )
+        content = response.choices[0].message.content
+        return content if content is not None else ""
+
+    def _run_reasoning_loop(self, question_data: dict[str, Any], max_rounds: int = 3) -> str:
+        messages: list[dict[str, Any]] = [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": self.parse_multimodal_input(question_data)},
+        ]
+
+        for _ in range(max_rounds):
+            assistant_text = self._call_llm_text(messages)
+            extracted = self._extract_python_code_block(assistant_text)
+            if extracted is None:
+                try:
+                    payload = json.loads(assistant_text)
+                    if isinstance(payload, dict) and "answer" in payload and "reasoning_process" in payload:
+                        return json.dumps(payload, ensure_ascii=False)
+                except Exception:
+                    pass
+                messages.append({"role": "assistant", "content": assistant_text})
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": "请严格输出 JSON 对象，字段仅包含 reasoning_process 和 answer。",
+                    }
+                )
+                return self._call_llm(messages)
+
+            observation = execute_python_code(extracted)
+            messages.append({"role": "assistant", "content": assistant_text})
+            messages.append(
+                {
+                    "role": "user",
+                    "content": (
+                        "Observation（Python执行结果）:\n"
+                        f"{observation}\n"
+                        "请继续推导；若已得到最终结论，请仅输出 JSON 对象。"
+                    ),
+                }
+            )
+
+        return self._call_llm(messages)
 
     def _normalize_input(self, question: dict[str, Any]) -> dict[str, Any]:
         normalized = self.adapter.normalize(question)
@@ -682,6 +804,17 @@ class EngineeringSolverAgent:
         if config is not None and hasattr(config, "base_url"):
             return bool(getattr(config, "base_url", ""))
         return True
+
+    def _can_use_moonshot(self) -> bool:
+        key = str(self.api_key or "").strip()
+        return bool(key and key != "your-default-key")
+
+    def _extract_python_code_block(self, text: str) -> str | None:
+        match = re.search(r"```python\s*(.*?)```", str(text), flags=re.IGNORECASE | re.DOTALL)
+        if not match:
+            return None
+        code = match.group(1).strip()
+        return code or None
 
     def _build_default_kimi_client(self) -> KimiClient | None:
         if not os.getenv("KIMI_BASE_URL", ""):

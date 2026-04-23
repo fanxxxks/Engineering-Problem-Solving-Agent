@@ -35,6 +35,5 @@ python scripts\\run_local_eval.py
 - This repository intentionally implements only a runnable placeholder scaffold.
 - `EngineeringSolverAgent` lives in `eng_solver_agent/agent.py`.
 - The competition output format is `question_id`, `reasoning_process`, and `answer`.
-- The repository currently uses an internal `eng_solver_agent.compat.pydantic_compat` shim because the machine does not have the real `pydantic` package installed.
-- If the environment later supports it, prefer switching imports back to the real `pydantic` package instead of keeping the shim.
-- The repository includes a tiny local `pytest -q` shim so the smoke tests can run without third-party packages.
+- The repository now depends on the real `pydantic` package.
+- Tests run with standard `pytest -q`.
