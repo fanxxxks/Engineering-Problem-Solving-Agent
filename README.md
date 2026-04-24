@@ -1,6 +1,6 @@
 # Engineering Problem Solving Agent
 
-Competition-grade agent for solving engineering foundation course problems (Calculus, Linear Algebra, Circuits, Physics). Built for the "未央城" AI Agent Competition.
+Competition-grade agent for solving engineering foundation course problems (Calculus, Linear Algebra, Circuits, Physics). 
 
 ## Architecture Overview
 
