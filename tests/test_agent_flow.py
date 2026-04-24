@@ -63,6 +63,7 @@ def test_agent_two_stage_flow_with_fake_kimi_client() -> None:
 
 
 def test_agent_fallback_flow_without_kimi_configuration() -> None:
+    _had_key = "KIMI_BASE_URL" in os.environ
     old_base_url = os.environ.get("KIMI_BASE_URL")
     try:
         os.environ.pop("KIMI_BASE_URL", None)
@@ -109,10 +110,10 @@ def test_agent_fallback_flow_without_kimi_configuration() -> None:
             assert str(result["reasoning_process"]).strip()
             assert str(result["answer"]).strip()
     finally:
-        if old_base_url is None:
-            os.environ.pop("KIMI_BASE_URL", None)
-        else:
+        if _had_key:
             os.environ["KIMI_BASE_URL"] = old_base_url
+        else:
+            os.environ.pop("KIMI_BASE_URL", None)
 
 
 def test_agent_with_retriever_still_solves_one_question() -> None:

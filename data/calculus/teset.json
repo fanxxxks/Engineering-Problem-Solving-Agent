@@ -1,0 +1,72 @@
+[
+    {
+        "question_id": "MATH_CALC_SERIES_001",
+        "type": "计算题",
+        "difficulty": "中等",
+        "question": "求级数 \(\sum_{n=1}^{\infty} \frac{2^{n} \sin ^{n} x}{n^{2}}\) 的收敛域。",
+        "answer": "### 解题步骤\n由根式判别法，对级数通项求极限：\n\\[\n\\lim_{n \\to \\infty} \\sqrt[n]{\\left| \\frac{2^{n} \\sin ^{n} x}{n^{2}} \\right|} = \\lim_{n \\to \\infty} \\frac{2|\\sin x|}{\\sqrt[n]{n^2}} = 2|\\sin x|\n\\]\n当\(2|\\sin x| < 1\)，即\(|\\sin x| < \\frac{1}{2}\)时，级数绝对收敛；\n当\(2|\\sin x| = 1\)，即\(|\\sin x| = \\frac{1}{2}\)时，级数变为\(\\sum_{n=1}^{\\infty} \\frac{(\\pm1)^n}{n^2}\)，其绝对值级数为\(\\sum_{n=1}^{\\infty} \\frac{1}{n^2}\)，是p=2的p-级数，收敛，因此端点处级数收敛。\n\n### 最终收敛域\n\\(D=\\left\\{x \\in \\mathbb{R} \\mid \\left|x-k \\pi\\right| \\leq \\frac{\\pi}{6}, k=0, \\pm 1, \\pm 2, \\cdots\\right\\}\\)"
+    },
+    {
+        "question_id": "MATH_CALC_SERIES_002",
+        "type": "计算题",
+        "difficulty": "简单",
+        "question": "求级数 \(\sum_{n=1}^{\infty} \frac{\sin (n x)}{n^{2}}\) 的收敛域。",
+        "answer": "### 解题步骤\n对任意实数\(x \\in (-\\infty, +\\infty)\)，级数通项满足：\n\\[\n\\left| \\frac{\\sin(nx)}{n^2} \\right| \\leq \\frac{1}{n^2}\n\\]\n而正项级数\(\\sum_{n=1}^{\\infty} \\frac{1}{n^2}\)是p=2的p-级数，收敛。由正项级数的比较判别法，原级数对任意\(x \\in (-\\infty, +\\infty)\)都绝对收敛。\n\n### 最终收敛域\n\\(D=(-\\infty, +\\infty)\\)"
+    },
+    {
+        "question_id": "MATH_CALC_SERIES_003",
+        "type": "计算题",
+        "difficulty": "中等",
+        "question": "求级数 \(\sum_{n=1}^{\infty} \frac{n !}{n^{200}} x^{n}\) 的收敛域。",
+        "answer": "### 解题步骤\n对于幂级数\(\\sum_{n=1}^{\\infty} a_n x^n\)，其中\(a_n = \\frac{n!}{n^{200}}\)，由比值法求收敛半径：\n\\[\nR = \\lim_{n \\to \\infty} \\left| \\frac{a_n}{a_{n+1}} \\right| = \\lim_{n \\to \\infty} \\frac{n!}{n^{200}} \\cdot \\frac{(n+1)^{200}}{(n+1)!} = \\lim_{n \\to \\infty} \\frac{1}{n+1} \\cdot \\left(1+\\frac{1}{n}\\right)^{200} = 0\n\\]\n收敛半径R=0，说明幂级数仅在x=0处收敛，当x≠0时，级数通项不趋于0，级数发散。\n\n### 最终收敛域\n\\(D=\\{0\\}\\)"
+    },
+    {
+        "question_id": "MATH_CALC_SERIES_004",
+        "type": "计算题",
+        "difficulty": "中等",
+        "question": "求级数 \(\sum_{n=1}^{\infty} n ! e^{n x}\) 的收敛域。",
+        "answer": "### 解题步骤\n令\(t = e^x\)，级数转化为幂级数\(\\sum_{n=1}^{\\infty} n! t^n\)。\n由比值法求收敛半径：\n\\[\nR = \\lim_{n \\to \\infty} \\left| \\frac{a_n}{a_{n+1}} \\right| = \\lim_{n \\to \\infty} \\frac{n!}{(n+1)!} = \\lim_{n \\to \\infty} \\frac{1}{n+1} = 0\n\\]\n因此幂级数仅在t=0处收敛，但\(t = e^x > 0\)对任意实数x恒成立，不存在实数x使得t=0，因此原级数对所有实数x均发散。\n\n### 最终收敛域\n级数的收敛域为空集\\(\\emptyset\\)"
+    },
+    {
+        "question_id": "MATH_CALC_SERIES_005",
+        "type": "证明题",
+        "difficulty": "中等",
+        "question": "考查函数项级数 \(\sum_{n=1}^{\infty} \frac{\ln(1+n^2 x^2)}{n^2}\) 在区间 \(x \in [-a,a] (a>0)\) 上是否一致收敛，并给出证明。",
+        "answer": "### 结论\n该级数在\([-a,a]\)上一致收敛。\n\n### 证明过程\n当n充分大时，对任意\(x \\in [-a,a]\)，有\(x^2 \\leq a^2\)，因此：\n\\[\n\\left| \\frac{\\ln(1+n^2 x^2)}{n^2} \\right| \\leq \\frac{\\ln(1+n^2 a^2)}{n^2}\n\\]\n对正项级数\(\\sum_{n=1}^{\\infty} \\frac{\\ln(1+n^2 a^2)}{n^2}\)，由极限判别法：\n\\[\n\\lim_{n \\to \\infty} \\frac{\\frac{\\ln(1+n^2 a^2)}{n^2}}{\\frac{1}{n^{3/2}}} = \\lim_{n \\to \\infty} \\frac{\\ln(1+n^2 a^2)}{\\sqrt{n}} = 0\n\\]\n而\(\\sum_{n=1}^{\\infty} \\frac{1}{n^{3/2}}\)是p=3/2>1的p-级数，收敛，因此\(\\sum_{n=1}^{\\infty} \\frac{\\ln(1+n^2 a^2)}{n^2}\)收敛。\n\n由魏尔斯特拉斯M判别法，原级数在\([-a,a]\)上一致收敛。"
+    },
+    {
+        "question_id": "MATH_CALC_SERIES_006",
+        "type": "证明题",
+        "difficulty": "中等",
+        "question": "考查函数项级数 \(\sum_{n=1}^{\infty} \frac{nx}{1+n^5 x^2}\) 在区间 \(x \in (-\\infty, +\\infty)\) 上是否一致收敛，并给出证明。",
+        "answer": "### 结论\n该级数在\\((-\\infty, +\\infty)\\)上一致收敛。\n\n### 证明过程\n对任意\(x \\in (-\\infty, +\\infty)\)，由均值不等式\(1+n^5 x^2 \\geq 2n^{5/2}|x|\)，因此级数通项满足：\n\\[\n\\left| \\frac{nx}{1+n^5 x^2} \\right| \\leq \\left| \\frac{nx}{2n^{5/2}|x|} \\right| = \\frac{1}{2n^{3/2}}\n\\]\n而正项级数\(\\sum_{n=1}^{\\infty} \\frac{1}{2n^{3/2}}\)是p=3/2>1的p-级数，收敛。\n\n由魏尔斯特拉斯M判别法，原级数在\\((-\\infty, +\\infty)\\)上一致收敛。"
+    },
+    {
+        "question_id": "MATH_CALC_SERIES_007",
+        "type": "证明题",
+        "difficulty": "中等",
+        "question": "考查函数项级数 \(\sum_{n=1}^{\infty} \frac{(-1)^{n}}{n-\\sin x}\) 在区间 \(x \in (-\\infty, +\\infty)\) 上是否一致收敛，并给出证明。",
+        "answer": "### 结论\n该级数在\\((-\\infty, +\\infty)\\)上一致收敛。\n\n### 证明过程\n该级数为交错级数，对任意正整数n和p，由莱布尼茨交错级数的余项估计，有：\n\\[\n\\left| \\sum_{k=n+1}^{n+p} \\frac{(-1)^k}{k-\\sin x} \\right| < \\frac{1}{n+1-\\sin x}\n\\]\n由于\(-1 \\leq \\sin x \\leq 1\)，因此\(n+1-\\sin x \\geq n\)，故：\n\\[\n\\left| \\sum_{k=n+1}^{n+p} \\frac{(-1)^k}{k-\\sin x} \\right| < \\frac{1}{n}\n\\]\n对任意\\(\\varepsilon>0\\)，取\(N = \\left[ \\frac{1}{\\varepsilon} \\right] + 1\)，当n>N时，对任意正整数p和任意\(x \\in (-\\infty, +\\infty)\)，都有上述不等式小于\\(\\varepsilon\\)。\n\n由函数项级数一致收敛的柯西准则，原级数在\\((-\\infty, +\\infty)\\)上一致收敛。"
+    },
+    {
+        "question_id": "MATH_CALC_SERIES_008",
+        "type": "证明题",
+        "difficulty": "中等",
+        "question": "考查函数项级数 \(\sum_{n=2}^{\infty} \ln \left(1+\\frac{x}{n \\ln ^{2} n}\right)\) 在区间 \(x \in[1,+\infty)\) 上是否一致收敛，并给出证明。",
+        "answer": "### 结论\n该级数在\\([1, +\\infty)\\)上非一致收敛。\n\n### 证明过程\n函数项级数一致收敛的必要条件是：通项\(u_n(x)\)在区间上一致趋于0。\n取\(x_n = n \\ln^2 n \\in [1, +\\infty)\)，代入通项得：\n\\[\nu_n(x_n) = \\ln\\left(1+\\frac{n \\ln^2 n}{n \\ln^2 n}\\right) = \\ln2\n\\]\n显然\(\\lim_{n \\to \\infty} u_n(x_n) = \\ln2 \\neq 0\)，说明\(u_n(x)\)在\\([1, +\\infty)\\)上不一致趋于0，不满足一致收敛的必要条件。\n\n因此原级数在\\([1, +\\infty)\\)上非一致收敛。"
+    },
+    {
+        "question_id": "MATH_CALC_SERIES_009",
+        "type": "证明题",
+        "difficulty": "中等",
+        "question": "考查函数项级数 \(\sum_{n=1}^{\infty} 2^{n} \\sin \\frac{1}{3^{n} x}\) 在区间 \(x \\in(0,+\infty)\) 上是否一致收敛，并给出证明。",
+        "answer": "### 结论\n该级数在\\((0, +\\infty)\\)上非一致收敛。\n\n### 证明过程\n函数项级数一致收敛的必要条件是：通项\(u_n(x)\)在区间上一致趋于0。\n取\(x_n = \\left( \\frac{2}{3} \\right)^n \\in (0, +\\infty)\)，代入通项得：\n\\[\nu_n(x_n) = 2^n \\sin\\left( \\frac{1}{3^n \\cdot (2/3)^n} \\right) = 2^n \\sin\\left( \\frac{1}{2^n} \\right)\n\\]\n求极限：\n\\[\n\\lim_{n \\to \\infty} u_n(x_n) = \\lim_{n \\to \\infty} 2^n \\cdot \\frac{1}{2^n} = 1 \\neq 0\n\\]\n说明\(u_n(x)\)在\\((0, +\\infty)\\)上不一致趋于0，不满足一致收敛的必要条件。\n\n因此原级数在\\((0, +\\infty)\\)上非一致收敛。"
+    },
+    {
+        "question_id": "MATH_CALC_SERIES_010",
+        "type": "证明题",
+        "difficulty": "中等",
+        "question": "考查函数项级数 \(\sum_{n=1}^{\infty} \frac{x^{2}}{\\left(1+x^{2}\\right)^{n}}\) 在区间 \(x \\in(-\\infty,+\infty)\) 上是否一致收敛，并给出证明。",
+        "answer": "### 结论\n该级数在\\((-\\infty, +\\infty)\\)上非一致收敛。\n\n### 证明过程\n#### 步骤1：求级数的和函数\n对任意x≠0，该级数是首项为\\(\\frac{x^2}{1+x^2}\\)、公比为\\(\\frac{1}{1+x^2}\\)的等比级数，因此和函数为：\n\\[\nS(x) = \\sum_{n=1}^{\\infty} \\frac{x^2}{(1+x^2)^n} = \\frac{\\frac{x^2}{1+x^2}}{1-\\frac{1}{1+x^2}} = 1, \\quad x \\neq 0\n\\]\n当x=0时，级数每一项均为0，因此\(S(0)=0\)。\n\n综上，和函数为：\n\\[\nS(x) = \\begin{cases} 1, & x \\neq 0 \\\\ 0, & x = 0 \\end{cases}\n\\]\n\n#### 步骤2：利用一致收敛的连续性定理\n一致收敛的连续函数项级数，其和函数必连续。\n该级数的每一项\\(u_n(x) = \\frac{x^2}{(1+x^2)^n}\\)在\\((-\\infty, +\\infty)\\)上连续，但和函数S(x)在x=0处不连续，因此原级数在\\((-\\infty, +\\infty)\\)上非一致收敛。"
+    },
+]

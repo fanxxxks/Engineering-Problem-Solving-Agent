@@ -58,7 +58,7 @@ def build_analyze_prompt(
 ) -> str:
     question_text = _question_text(question)
     subject_key = _normalize_subject(subject or _question_subject(question))
-    template = SUBJECT_TEMPLATES[subject_key]
+    template = SUBJECT_TEMPLATES.get(subject_key, SUBJECT_TEMPLATES["physics"])
     payload = {
         "question_id": _question_id(question),
         "question": question_text,
@@ -98,7 +98,7 @@ def build_draft_prompt(
 ) -> str:
     question_text = _question_text(question)
     subject_key = _normalize_subject(subject or _analysis_subject(analysis) or _question_subject(question))
-    template = SUBJECT_TEMPLATES[subject_key]
+    template = SUBJECT_TEMPLATES.get(subject_key, SUBJECT_TEMPLATES["physics"])
     payload = {
         "question_id": _question_id(question),
         "question": question_text,

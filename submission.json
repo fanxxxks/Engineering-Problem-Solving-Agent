@@ -1,5 +1,5 @@
 {
-  "module": "eng_solver_agent.agent",
-  "class_name": "EngineeringSolverAgent",
+  "module": "eng_solver_agent.unified_agent",
+  "class_name": "UnifiedAgent",
   "method_name": "solve"
 }

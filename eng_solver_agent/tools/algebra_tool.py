@@ -98,6 +98,66 @@ class AlgebraTool:
             raise ToolUnsupportedError(f"unsupported symbolic expression: {expression}")
         return result
 
+    def matrix_power(self, matrix: list[list[Any]], exponent: int) -> list[list[float]]:
+        """Compute matrix^n using repeated squaring."""
+        if self._sympy is not None:
+            mat = self._sympy.Matrix(matrix)
+            result = mat ** exponent
+            return [[float(value) for value in row] for row in result.tolist()]
+        # Fallback using numpy-like manual multiplication
+        size = len(matrix)
+        if size == 0 or any(len(row) != size for row in matrix):
+            raise ToolUnsupportedError("matrix_power requires a square matrix")
+        # Initialize result as identity
+        result = [[1.0 if i == j else 0.0 for j in range(size)] for i in range(size)]
+        base = [[float(entry) for entry in row] for row in matrix]
+        power = exponent
+        while power > 0:
+            if power & 1:
+                result = self._matrix_mult(result, base)
+            base = self._matrix_mult(base, base)
+            power >>= 1
+        return result
+
+    def _matrix_mult(self, a: list[list[float]], b: list[list[float]]) -> list[list[float]]:
+        n = len(a)
+        m = len(b[0])
+        p = len(b)
+        result = [[0.0] * m for _ in range(n)]
+        for i in range(n):
+            for j in range(m):
+                total = 0.0
+                for k in range(p):
+                    total += a[i][k] * b[k][j]
+                result[i][j] = total
+        return result
+
+    def linear_independence(self, vectors: list[list[Any]]) -> dict[str, Any]:
+        """Check if a set of vectors is linearly independent."""
+        if not vectors or not vectors[0]:
+            return {"independent": False, "reason": "empty vector set"}
+        if self._sympy is not None:
+            mat = self._sympy.Matrix(vectors)
+            r = mat.rank()
+            num_vectors = len(vectors)
+            independent = r == num_vectors
+            return {
+                "independent": independent,
+                "rank": int(r),
+                "num_vectors": num_vectors,
+                "relation": None if independent else "vectors are linearly dependent",
+            }
+        from eng_solver_agent.tools._math_support import rank as _rank
+        r = _rank(vectors)
+        num_vectors = len(vectors)
+        independent = r == num_vectors
+        return {
+            "independent": independent,
+            "rank": r,
+            "num_vectors": num_vectors,
+            "relation": None if independent else "vectors are linearly dependent",
+        }
+
     def _coerce_scalar(self, value: Any) -> Any:
         try:
             numeric = complex(value)

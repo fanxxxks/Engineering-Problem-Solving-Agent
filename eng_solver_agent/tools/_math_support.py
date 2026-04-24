@@ -38,12 +38,16 @@ def _to_fraction(value: Any) -> Fraction:
     if isinstance(value, bool):
         raise TypeError("boolean values are not valid numeric inputs")
     if isinstance(value, int):
-        return Fraction(value, 1)
+        return _INT_FRACTIONS.get(value, Fraction(value, 1))
     if isinstance(value, float):
         return Fraction(str(value))
     if isinstance(value, str):
         return Fraction(value)
     raise TypeError(f"Unsupported numeric type: {type(value)!r}")
+
+
+# Cache common integer fractions to avoid repeated allocation
+_INT_FRACTIONS: dict[int, Fraction] = {i: Fraction(i, 1) for i in range(-20, 21)}
 
 
 def _cleanup_poly(poly: dict[int, Fraction]) -> dict[int, Fraction]:
@@ -55,6 +59,10 @@ def poly_from_constant(value: Any) -> dict[int, Fraction]:
 
 
 def poly_add(left: dict[int, Fraction], right: dict[int, Fraction], sign: int = 1) -> dict[int, Fraction]:
+    if not left:
+        return _cleanup_poly({k: v * sign for k, v in right.items()})
+    if not right:
+        return dict(left)
     out: dict[int, Fraction] = defaultdict(Fraction)
     for power, coeff in left.items():
         out[power] += coeff
@@ -64,6 +72,8 @@ def poly_add(left: dict[int, Fraction], right: dict[int, Fraction], sign: int = 
 
 
 def poly_mul(left: dict[int, Fraction], right: dict[int, Fraction]) -> dict[int, Fraction]:
+    if not left or not right:
+        return {}
     out: dict[int, Fraction] = defaultdict(Fraction)
     for lp, lc in left.items():
         for rp, rc in right.items():
@@ -74,7 +84,11 @@ def poly_mul(left: dict[int, Fraction], right: dict[int, Fraction]) -> dict[int,
 def poly_pow(poly: dict[int, Fraction], exponent: int) -> dict[int, Fraction]:
     if exponent < 0:
         raise ToolUnsupportedError("negative polynomial powers are not supported without sympy")
-    result = {0: Fraction(1)}
+    if exponent == 0:
+        return {0: _ONE}
+    if exponent == 1:
+        return dict(poly)
+    result = {0: _ONE}
     base = dict(poly)
     power = exponent
     while power:
@@ -83,6 +97,10 @@ def poly_pow(poly: dict[int, Fraction], exponent: int) -> dict[int, Fraction]:
         base = poly_mul(base, base)
         power >>= 1
     return _cleanup_poly(result)
+
+
+_ONE: Fraction = Fraction(1, 1)
+_NEG_ONE: Fraction = Fraction(-1, 1)
 
 
 def poly_div_const(poly: dict[int, Fraction], divisor: Any) -> dict[int, Fraction]:
@@ -95,25 +113,36 @@ def poly_div_const(poly: dict[int, Fraction], divisor: Any) -> dict[int, Fractio
 def poly_diff(poly: dict[int, Fraction], order: int = 1) -> dict[int, Fraction]:
     result = dict(poly)
     for _ in range(order):
+        if not result:
+            return {}
         derived: dict[int, Fraction] = {}
         for power, coeff in result.items():
             if power == 0:
                 continue
-            derived[power - 1] = derived.get(power - 1, Fraction(0)) + coeff * power
+            new_power = power - 1
+            derived[new_power] = derived.get(new_power, _ZERO) + coeff * power
         result = _cleanup_poly(derived)
     return result
 
 
+_ZERO: Fraction = Fraction(0, 1)
+
+
 def poly_integral(poly: dict[int, Fraction]) -> dict[int, Fraction]:
+    if not poly:
+        return {}
     integrated: dict[int, Fraction] = {}
     for power, coeff in poly.items():
-        integrated[power + 1] = coeff / Fraction(power + 1)
+        new_power = power + 1
+        integrated[new_power] = coeff / new_power
     return _cleanup_poly(integrated)
 
 
 def poly_eval(poly: dict[int, Fraction], x_value: Any) -> Fraction | float:
     x = _to_fraction(x_value)
-    total = Fraction(0)
+    if not poly:
+        return _ZERO
+    total = _ZERO
     for power, coeff in poly.items():
         total += coeff * (x ** power)
     return total
@@ -125,6 +154,8 @@ def poly_to_string(poly: dict[int, Fraction], var: str = "x") -> str:
     pieces: list[str] = []
     for power in sorted(poly, reverse=True):
         coeff = poly[power]
+        if coeff == 0:
+            continue
         sign = "-" if coeff < 0 else "+"
         magnitude = -coeff if coeff < 0 else coeff
         if power == 0:
@@ -135,6 +166,8 @@ def poly_to_string(poly: dict[int, Fraction], var: str = "x") -> str:
             body = f"{var}**{power}" if magnitude == 1 else f"{magnitude}*{var}**{power}"
         pieces.append((sign, body))
 
+    if not pieces:
+        return "0"
     first_sign, first_body = pieces[0]
     out = f"-{first_body}" if first_sign == "-" else first_body
     for sign, body in pieces[1:]:
@@ -155,7 +188,7 @@ def _poly_visit(node: ast.AST, var: str) -> dict[int, Fraction]:
     if isinstance(node, ast.Name):
         if node.id != var:
             raise ToolUnsupportedError(f"unknown symbol '{node.id}' without sympy")
-        return {1: Fraction(1)}
+        return {1: _ONE}
     if isinstance(node, ast.BinOp):
         left = _poly_visit(node.left, var)
         right = _poly_visit(node.right, var)
@@ -177,11 +210,13 @@ def _poly_visit(node: ast.AST, var: str) -> dict[int, Fraction]:
                 raise ToolUnsupportedError("non-integer polynomial exponents need sympy")
             return poly_pow(left, int(exponent))
     if isinstance(node, ast.UnaryOp):
-        inner = _poly_visit(node.operand, var)
+        inner = _poly_visit(node.operand, var=var)
         if isinstance(node.op, ast.UAdd):
             return inner
         if isinstance(node.op, ast.USub):
-            return poly_mul({0: Fraction(-1)}, inner)
+            return poly_mul({_ZERO: _NEG_ONE}, inner)
+    if isinstance(node, ast.Call):
+        raise ToolUnsupportedError("function calls are not allowed in polynomial expressions")
     raise ToolUnsupportedError(f"unsupported expression element: {ast.dump(node, include_attributes=False)}")
 
 
@@ -192,18 +227,16 @@ def poly_degree(poly: dict[int, Fraction]) -> int:
 def poly_roots(poly: dict[int, Fraction]) -> list[complex | float]:
     cleaned = _cleanup_poly(dict(poly))
     degree = poly_degree(cleaned)
-    if degree == -math.inf:
-        return []
-    if degree == 0:
+    if degree == -math.inf or degree == 0:
         return []
     if degree == 1:
-        b = cleaned.get(1, Fraction(0))
-        a = cleaned.get(0, Fraction(0))
+        b = cleaned.get(1, _ZERO)
+        a = cleaned.get(0, _ZERO)
         return [float(-a / b)]
     if degree == 2:
-        a = cleaned.get(2, Fraction(0))
-        b = cleaned.get(1, Fraction(0))
-        c = cleaned.get(0, Fraction(0))
+        a = cleaned.get(2, _ZERO)
+        b = cleaned.get(1, _ZERO)
+        c = cleaned.get(0, _ZERO)
         discriminant = b * b - 4 * a * c
         if discriminant >= 0:
             root = math.sqrt(float(discriminant))
@@ -238,17 +271,22 @@ def solve_linear_system(matrix: list[list[Any]], rhs: list[Any]) -> list[float]:
             augmented[col], augmented[pivot] = augmented[pivot], augmented[col]
 
         pivot_value = augmented[col][col]
+        # Scale pivot row
+        aug_col = augmented[col]
+        inv_pivot = _ONE / pivot_value
         for j in range(col, size + 1):
-            augmented[col][j] /= pivot_value
+            aug_col[j] *= inv_pivot
 
+        # Eliminate other rows
         for row in range(size):
             if row == col:
                 continue
             factor = augmented[row][col]
             if factor == 0:
                 continue
+            aug_row = augmented[row]
             for j in range(col, size + 1):
-                augmented[row][j] -= factor * augmented[col][j]
+                aug_row[j] -= factor * aug_col[j]
 
     return [float(augmented[i][size]) for i in range(size)]
 
@@ -257,7 +295,7 @@ def determinant(matrix: list[list[Any]]) -> float:
     square = _validate_square_matrix(matrix)
     size = len(square)
     working = [[_to_fraction(value) for value in row] for row in square]
-    sign = Fraction(1)
+    sign = _ONE
 
     for col in range(size):
         pivot = None
@@ -269,12 +307,17 @@ def determinant(matrix: list[list[Any]]) -> float:
             return 0.0
         if pivot != col:
             working[col], working[pivot] = working[pivot], working[col]
-            sign *= -1
+            sign = -sign
         pivot_value = working[col][col]
+        # Eliminate below
         for row in range(col + 1, size):
             factor = working[row][col] / pivot_value
+            if factor == 0:
+                continue
+            wrow = working[row]
+            wcol = working[col]
             for j in range(col, size):
-                working[row][j] -= factor * working[col][j]
+                wrow[j] -= factor * wcol[j]
 
     det = sign
     for idx in range(size):
@@ -286,7 +329,7 @@ def inverse(matrix: list[list[Any]]) -> list[list[float]]:
     square = _validate_square_matrix(matrix)
     size = len(square)
     augmented = [
-        [_to_fraction(value) for value in row] + [Fraction(1 if i == j else 0) for j in range(size)]
+        [_to_fraction(value) for value in row] + [_ONE if i == j else _ZERO for j in range(size)]
         for i, row in enumerate(square)
     ]
 
@@ -302,8 +345,10 @@ def inverse(matrix: list[list[Any]]) -> list[list[float]]:
             augmented[col], augmented[pivot] = augmented[pivot], augmented[col]
 
         pivot_value = augmented[col][col]
+        inv_pivot = _ONE / pivot_value
+        aug_col = augmented[col]
         for j in range(2 * size):
-            augmented[col][j] /= pivot_value
+            aug_col[j] *= inv_pivot
 
         for row in range(size):
             if row == col:
@@ -311,8 +356,9 @@ def inverse(matrix: list[list[Any]]) -> list[list[float]]:
             factor = augmented[row][col]
             if factor == 0:
                 continue
+            aug_row = augmented[row]
             for j in range(2 * size):
-                augmented[row][j] -= factor * augmented[col][j]
+                aug_row[j] -= factor * aug_col[j]
 
     return [[float(augmented[i][j]) for j in range(size, 2 * size)] for i in range(size)]
 
@@ -337,16 +383,19 @@ def rank(matrix: list[list[Any]]) -> int:
         if pivot != pivot_row:
             working[pivot_row], working[pivot] = working[pivot], working[pivot_row]
         pivot_value = working[pivot_row][col]
+        w_pivot = working[pivot_row]
+        inv_pivot = _ONE / pivot_value
         for j in range(col, cols):
-            working[pivot_row][j] /= pivot_value
+            w_pivot[j] *= inv_pivot
         for row in range(rows):
             if row == pivot_row:
                 continue
             factor = working[row][col]
             if factor == 0:
                 continue
+            w_row = working[row]
             for j in range(col, cols):
-                working[row][j] -= factor * working[pivot_row][j]
+                w_row[j] -= factor * w_pivot[j]
         pivot_row += 1
         rank_value += 1
         if pivot_row == rows:
@@ -411,6 +460,8 @@ def taylor_series(poly: dict[int, Fraction], center: Any, order: int, var: str =
     center_value = _to_fraction(center)
     coefficients: list[float] = []
     series_terms: list[str] = []
+    center_is_zero = center_value == 0
+    center_float = float(center_value)
     for k in range(order + 1):
         derivative = poly_diff(poly, order=k)
         value = poly_eval(derivative, center_value)
@@ -418,20 +469,21 @@ def taylor_series(poly: dict[int, Fraction], center: Any, order: int, var: str =
         coefficients.append(float(coeff))
         if coeff == 0:
             continue
+        coeff_f = float(coeff)
         if k == 0:
-            term = f"{float(coeff)}"
-        elif center_value == 0:
+            term = f"{coeff_f}"
+        elif center_is_zero:
             if k == 1:
-                term = f"{float(coeff)}*{var}"
+                term = f"{coeff_f}*{var}"
             else:
-                term = f"{float(coeff)}*{var}**{k}"
+                term = f"{coeff_f}*{var}**{k}"
         elif k == 1:
-            term = f"{float(coeff)}*({var} - {float(center_value)})"
+            term = f"{coeff_f}*({var} - {center_float})"
         else:
-            term = f"{float(coeff)}*({var} - {float(center_value)})**{k}"
+            term = f"{coeff_f}*({var} - {center_float})**{k}"
         series_terms.append(term)
     return {
-        "center": float(center_value),
+        "center": center_float,
         "order": order,
         "coefficients": coefficients,
         "series": " + ".join(series_terms) if series_terms else "0",

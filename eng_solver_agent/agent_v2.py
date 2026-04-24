@@ -93,14 +93,6 @@ Response format:
             
         return None
     
-    def _should_try_remote_client(self) -> bool:
-        """Check if we can use the remote LLM client."""
-        if self.kimi_client is None:
-            return False
-        config = getattr(self.kimi_client, "config", None)
-        if config is not None:
-            return bool(getattr(config, "base_url", "")) and bool(getattr(config, "api_key", ""))
-        return True
 
 
 # Backward compatibility

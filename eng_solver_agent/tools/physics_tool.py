@@ -106,7 +106,7 @@ class PhysicsTool:
         F = knowns.get("F")
         s = knowns.get("s")
         theta = knowns.get("theta", 0)
-        theta_rad = math.radians(float(theta)) if abs(theta) > 2 * math.pi else float(theta)
+        theta_rad = math.radians(float(theta))
 
         if target in {"w"}:
             if m is not None and v0 is not None and v is not None:

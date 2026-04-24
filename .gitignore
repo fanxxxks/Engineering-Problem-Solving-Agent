@@ -23,8 +23,27 @@ ENV/
 Thumbs.db
 
 # Test exports
+output/
 data/exports/*.json
 !data/exports/.gitkeep
 
 # Logs
 *.log
+
+# Temporary scripts
+benchmark.py
+count_questions.py
+fix_json.py
+run_calculus_test.py
+test_*.py
+scripts/test_*.py
+scripts/run_hard_test.py
+
+# Data validation sets (large files)
+data/基础物理学.json
+data/微积分.json
+data/线性代数题目.json
+data/电路原理题集.json
+data/dev/*.json
+!data/dev/dev.json
+!data/dev/hard_test.json

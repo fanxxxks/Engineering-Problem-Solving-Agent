@@ -9,8 +9,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from eng_solver_agent.agent import EngineeringSolverAgent
-
 
 FALLBACK_HINTS = (
     "暂无法可靠给出最终数值",
@@ -44,10 +42,13 @@ def run_local_eval(
     dev_path: str | Path,
     predictions_path: str | Path,
     report_path: str | Path,
-    agent: EngineeringSolverAgent | None = None,
+    agent: Any | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     questions = load_dev_set(dev_path)
-    solver = agent or EngineeringSolverAgent()
+    if agent is None:
+        from eng_solver_agent.agent import EngineeringSolverAgent
+        agent = EngineeringSolverAgent()
+    solver = agent
     predictions: list[dict[str, Any]] = []
     for question in questions:
         prediction = solver.solve_one(question)

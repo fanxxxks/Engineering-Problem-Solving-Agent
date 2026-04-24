@@ -113,8 +113,35 @@ class CalculusTool:
             coefficients = self._extract_coefficients_from_series(series_str, var)
             return {"center": center, "order": order, "series": series_str, "coefficients": coefficients}
 
-        poly = poly_from_ast(expression, var=var)
-        return taylor_series(poly, center=center, order=order, var=var)
+        # Fallback: only works for simple polynomials
+        try:
+            poly = poly_from_ast(expression, var=var)
+            return taylor_series(poly, center=center, order=order, var=var)
+        except Exception:
+            raise ToolUnsupportedError(f"taylor_series requires sympy for non-polynomial expressions: {expression}")
+
+    def series_convergence_radius(self, expression: str, var: str = "x") -> dict[str, Any]:
+        """Calculate convergence radius for power series sum a_n * x^n.
+
+        expression should be the general term a_n as a function of n and x.
+        """
+        if self._sympy is None:
+            raise ToolUnsupportedError("series_convergence_radius requires sympy")
+
+        n = self._sympy.Symbol("n")
+        x = self._sympy.Symbol(var)
+        expr = self._sympy.sympify(expression)
+
+        # Ratio method: R = lim |a_n / a_{n+1}|
+        a_n = expr
+        a_n1 = self._sympy.sympify(expression.replace("n", "(n+1)"))
+        ratio = self._sympy.limit(self._sympy.Abs(a_n / a_n1), n, self._sympy.oo)
+
+        return {
+            "method": "ratio",
+            "convergence_radius": float(ratio) if ratio.is_number else str(ratio),
+            "expression": expression,
+        }
 
     def _validate_order(self, order: int) -> None:
         if not isinstance(order, int) or order < 0:
@@ -156,7 +183,7 @@ class CalculusTool:
     def _extract_coefficients_from_series(self, series_str: str, var: str) -> list[float]:
         """Extract coefficients from sympy series string."""
         import re
-        coefficients = [0.0, 0.0, 0.0]
+        coefficients: dict[int, float] = {}
         terms = series_str.replace("-", "+-").split("+")
         for term in terms:
             term = term.strip()
@@ -169,8 +196,6 @@ class CalculusTool:
                     power = int(power_match.group(1))
             elif term.endswith(var) or (f"*{var}" in term and f"{var}**" not in term):
                 power = 1
-            if power > 2:
-                continue
             coeff_match = re.match(r"^(-?\d+(?:/\d+)?)", term)
             if coeff_match:
                 coeff_str = coeff_match.group(1)
@@ -186,7 +211,10 @@ class CalculusTool:
             else:
                 coeff = 1.0 if term and term[0] != "-" else -1.0
             coefficients[power] = coeff
-        return coefficients
+        if not coefficients:
+            return []
+        max_power = max(coefficients)
+        return [coefficients.get(p, 0.0) for p in range(max_power + 1)]
 
     def _format_integral_result(self, result: str, var: str) -> str:
         """Format integral result to match expected format like '1/3*x**3'."""
