@@ -2,8 +2,9 @@
 
 Provides search, comparison, and matching capabilities to find similar
 problems/questions from the local solved-examples and formula-cards
-knowledge bases. This enhances the existing Retriever with explicit
-problem-similarity semantics.
+knowledge bases. This version integrates with the LangChain vector
+retriever for semantic similarity while keeping the detailed comparison
+and scoring features.
 """
 
 from __future__ import annotations
@@ -23,12 +24,15 @@ class SimilarProblemTool:
 
     Loads solved examples and formula cards from the local knowledge base
     and provides ranked similarity search with detailed comparison metrics.
+    When available, uses the LangChain vector retriever for semantic search;
+    otherwise falls back to the legacy keyword retriever.
     """
 
     def __init__(
         self,
         examples_path: str | Path | None = None,
         formula_cards_path: str | Path | None = None,
+        use_vector_search: bool = True,
     ) -> None:
         self.loader = KnowledgeBaseLoader()
         base_dir = Path(__file__).resolve().parent.parent / "retrieval"
@@ -36,7 +40,22 @@ class SimilarProblemTool:
         self.formula_cards_path = Path(formula_cards_path) if formula_cards_path else base_dir / "formula_cards.json"
         self.examples = self._load_examples()
         self.formula_cards = self._load_formula_cards()
-        self.retriever = Retriever(
+
+        # Try LangChain vector retriever first
+        self._vector_retriever: Any | None = None
+        if use_vector_search:
+            try:
+                from eng_solver_agent.retrieval.langchain_retriever import LangChainRetriever
+
+                self._vector_retriever = LangChainRetriever(
+                    formula_cards=self.formula_cards,
+                    solved_examples=self.examples,
+                )
+            except Exception:
+                pass
+
+        # Always keep a legacy keyword retriever as fallback
+        self._keyword_retriever = Retriever(
             formula_cards=self.formula_cards,
             solved_examples=self.examples,
         )
@@ -88,11 +107,15 @@ class SimilarProblemTool:
         if not query or not isinstance(query, str):
             return {"matched_examples": [], "matched_formulas": [], "metadata": {"error": "empty query"}}
 
-        query_norm = self._normalize_text(query)
-        query_tokens = set(self._tokenize(query_norm))
-
-        # Retrieve from knowledge base via existing Retriever
-        retrieval_result = self.retriever.retrieve(query, subject=subject, topic=topic, top_k=top_k * 2)
+        # Use vector retriever if available; otherwise keyword fallback
+        if self._vector_retriever is not None:
+            retrieval_result = self._vector_retriever.retrieve(
+                query, subject=subject, topic=topic, top_k=top_k * 2
+            )
+        else:
+            retrieval_result = self._keyword_retriever.retrieve(
+                query, subject=subject, topic=topic, top_k=top_k * 2
+            )
 
         # Score and rank examples with detailed similarity metrics
         scored_examples = []
@@ -147,6 +170,7 @@ class SimilarProblemTool:
                 "total_examples_searched": len(self.examples),
                 "total_formulas_searched": len(self.formula_cards),
                 "matched_terms": retrieval_result.matched_terms,
+                "vector_search_enabled": self._vector_retriever is not None,
             },
         }
 
