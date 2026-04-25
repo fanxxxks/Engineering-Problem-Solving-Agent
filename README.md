@@ -1,10 +1,8 @@
 # Engineering Problem Solving Agent — 工程问题求解智能体
 
-<<<<<<< HEAD
+Competition-grade agent for solving engineering foundation course problems (Calculus, Linear Algebra, Circuits, Physics).
+
 ## 一、项目概述
-=======
-Competition-grade agent for solving engineering foundation course problems (Calculus, Linear Algebra, Circuits, Physics). 
->>>>>>> 4706fc22fa01ccb1832232973b4b395cfb1135be
 
 本项目是为 **"未央城" AI Agent 竞赛** 打造的竞赛级工程问题求解系统，专注于解决**工科基础课程**（微积分、线性代数、电路原理、基础物理）的数学与物理问题。
 

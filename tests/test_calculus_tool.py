@@ -1,10 +1,10 @@
 from eng_solver_agent.tools._math_support import ToolUnsupportedError, load_sympy
-from eng_solver_agent.tools.calculus_tool import CalculusTool
+from eng_solver_agent.tools import NumericalComputationTool
 from tests._helpers import approx_equal, assert_raises
 
 
 def test_calculus_tool_diff_integrate_limit() -> None:
-    tool = CalculusTool()
+    tool = NumericalComputationTool()
 
     assert tool.diff("x**3 + 2*x") == "3*x**2 + 2"
     assert approx_equal(tool.diff("x**2", at=2), 4.0)
@@ -14,7 +14,7 @@ def test_calculus_tool_diff_integrate_limit() -> None:
 
 
 def test_calculus_tool_critical_points_and_taylor_series() -> None:
-    tool = CalculusTool()
+    tool = NumericalComputationTool()
 
     critical_points = tool.critical_points("x**2 + 2*x + 1")
     assert len(critical_points) == 1
@@ -28,6 +28,6 @@ def test_calculus_tool_critical_points_and_taylor_series() -> None:
 def test_calculus_tool_reports_unsupported_symbolic_input_without_sympy() -> None:
     if load_sympy() is not None:
         return
-    tool = CalculusTool()
+    tool = NumericalComputationTool()
 
     assert_raises(ToolUnsupportedError, tool.diff, "sin(x)")

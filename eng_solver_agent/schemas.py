@@ -94,6 +94,15 @@ class RetrievalResult(BaseModel):
     metadata: dict = Field(default_factory=dict)
 
 
+class SimilarProblemResult(BaseModel):
+    query: str
+    subject: Optional[str] = None
+    topic: Optional[str] = None
+    matched_examples: list = Field(default_factory=list)
+    matched_formulas: list = Field(default_factory=list)
+    metadata: dict = Field(default_factory=dict)
+
+
 __all__ = [
     "QuestionInput",
     "ParsedQuestion",
@@ -105,4 +114,5 @@ __all__ = [
     "FormulaCard",
     "SolvedExample",
     "RetrievalResult",
+    "SimilarProblemResult",
 ]

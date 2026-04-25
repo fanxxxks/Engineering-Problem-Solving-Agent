@@ -1,0 +1,342 @@
+"""Similar problem finder tool.
+
+Provides search, comparison, and matching capabilities to find similar
+problems/questions from the local solved-examples and formula-cards
+knowledge bases. This enhances the existing Retriever with explicit
+problem-similarity semantics.
+"""
+
+from __future__ import annotations
+
+import json
+import math
+import re
+from pathlib import Path
+from typing import Any
+
+from eng_solver_agent.retrieval.kb_loader import KnowledgeBaseLoader
+from eng_solver_agent.retrieval.retriever import Retriever
+
+
+class SimilarProblemTool:
+    """Tool for finding, comparing, and matching similar problems.
+
+    Loads solved examples and formula cards from the local knowledge base
+    and provides ranked similarity search with detailed comparison metrics.
+    """
+
+    def __init__(
+        self,
+        examples_path: str | Path | None = None,
+        formula_cards_path: str | Path | None = None,
+    ) -> None:
+        self.loader = KnowledgeBaseLoader()
+        base_dir = Path(__file__).resolve().parent.parent / "retrieval"
+        self.examples_path = Path(examples_path) if examples_path else base_dir / "solved_examples.jsonl"
+        self.formula_cards_path = Path(formula_cards_path) if formula_cards_path else base_dir / "formula_cards.json"
+        self.examples = self._load_examples()
+        self.formula_cards = self._load_formula_cards()
+        self.retriever = Retriever(
+            formula_cards=self.formula_cards,
+            solved_examples=self.examples,
+        )
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
+    def solve(self, query: str) -> str:
+        """Entry-point compatible with the generic tool interface.
+
+        Args:
+            query: A JSON string or natural-language query.
+                JSON format: '{"question": "...", "subject": "...", "top_k": 3}'
+        """
+        try:
+            parsed = json.loads(query)
+            if isinstance(parsed, dict):
+                question = parsed.get("question", query)
+                subject = parsed.get("subject")
+                topic = parsed.get("topic")
+                top_k = parsed.get("top_k", 3)
+                return json.dumps(
+                    self.find_similar(question, subject=subject, topic=topic, top_k=top_k),
+                    ensure_ascii=False,
+                )
+        except Exception:
+            pass
+        return json.dumps(self.find_similar(query), ensure_ascii=False)
+
+    def find_similar(
+        self,
+        query: str,
+        subject: str | None = None,
+        topic: str | None = None,
+        top_k: int = 3,
+    ) -> dict[str, Any]:
+        """Search for similar problems and return ranked results with scores.
+
+        Args:
+            query: The question text to search against.
+            subject: Optional subject filter (physics, circuits, linalg, calculus).
+            topic: Optional topic filter.
+            top_k: Maximum number of results to return.
+
+        Returns:
+            A dict containing matched_examples, matched_formulas, and metadata.
+        """
+        if not query or not isinstance(query, str):
+            return {"matched_examples": [], "matched_formulas": [], "metadata": {"error": "empty query"}}
+
+        query_norm = self._normalize_text(query)
+        query_tokens = set(self._tokenize(query_norm))
+
+        # Retrieve from knowledge base via existing Retriever
+        retrieval_result = self.retriever.retrieve(query, subject=subject, topic=topic, top_k=top_k * 2)
+
+        # Score and rank examples with detailed similarity metrics
+        scored_examples = []
+        for example in retrieval_result.solved_examples:
+            score_detail = self.match_score(query, example)
+            if score_detail["overall_score"] > 0:
+                scored_examples.append((score_detail["overall_score"], score_detail, example))
+
+        scored_examples.sort(key=lambda x: (-x[0], x[2].get("question_id", "")))
+        top_examples = scored_examples[:top_k]
+
+        # Score and rank formula cards
+        scored_formulas = []
+        for card in retrieval_result.formula_cards:
+            score_detail = self._match_formula_score(query, card)
+            if score_detail["overall_score"] > 0:
+                scored_formulas.append((score_detail["overall_score"], score_detail, card))
+
+        scored_formulas.sort(key=lambda x: (-x[0], x[2].get("id", "")))
+        top_formulas = scored_formulas[:top_k]
+
+        return {
+            "query": query,
+            "subject": subject,
+            "topic": topic,
+            "matched_examples": [
+                {
+                    "question_id": ex.get("question_id"),
+                    "subject": ex.get("subject"),
+                    "topic": ex.get("topic"),
+                    "question": ex.get("question"),
+                    "answer": ex.get("answer"),
+                    "reasoning_process": ex.get("reasoning_process", "")[:200],
+                    "similarity_score": round(score, 4),
+                    "score_breakdown": detail,
+                }
+                for score, detail, ex in top_examples
+            ],
+            "matched_formulas": [
+                {
+                    "id": card.get("id"),
+                    "subject": card.get("subject"),
+                    "topic": card.get("topic"),
+                    "formula": card.get("formula"),
+                    "conditions": card.get("conditions", [])[:3],
+                    "similarity_score": round(score, 4),
+                    "score_breakdown": detail,
+                }
+                for score, detail, card in top_formulas
+            ],
+            "metadata": {
+                "total_examples_searched": len(self.examples),
+                "total_formulas_searched": len(self.formula_cards),
+                "matched_terms": retrieval_result.matched_terms,
+            },
+        }
+
+    def compare_questions(self, question_a: str, question_b: str) -> dict[str, Any]:
+        """Compare two questions and return detailed similarity metrics.
+
+        Args:
+            question_a: First question text.
+            question_b: Second question text.
+
+        Returns:
+            A dict with token overlap, structural similarity, keyword match,
+            and an overall similarity score.
+        """
+        tokens_a = set(self._tokenize(self._normalize_text(question_a)))
+        tokens_b = set(self._tokenize(self._normalize_text(question_b)))
+
+        if not tokens_a or not tokens_b:
+            return {
+                "token_overlap": 0.0,
+                "jaccard_similarity": 0.0,
+                "structural_similarity": 0.0,
+                "overall_similarity": 0.0,
+            }
+
+        intersection = tokens_a & tokens_b
+        union = tokens_a | tokens_b
+        jaccard = len(intersection) / len(union) if union else 0.0
+
+        # Structural similarity: compare numeric patterns, matrix patterns, etc.
+        struct_a = self._extract_structural_features(question_a)
+        struct_b = self._extract_structural_features(question_b)
+        struct_overlap = sum(1 for k, v in struct_a.items() if struct_b.get(k) == v)
+        struct_total = max(len(struct_a), len(struct_b))
+        struct_sim = struct_overlap / struct_total if struct_total else 0.0
+
+        # Keyword boost for mathematical terms
+        math_keywords = {
+            "导数", "积分", "极限", "行列式", "矩阵", "特征值", "特征向量",
+            "电阻", "电路", "串联", "并联", "牛顿", "动量", "能量", "功",
+            "derivative", "integral", "limit", "determinant", "matrix",
+            "eigenvalue", "eigenvector", "resistor", "circuit", "series",
+            "parallel", "newton", "momentum", "energy", "work",
+        }
+        keywords_a = tokens_a & math_keywords
+        keywords_b = tokens_b & math_keywords
+        keyword_overlap = len(keywords_a & keywords_b)
+        keyword_total = max(len(keywords_a), len(keywords_b))
+        keyword_sim = keyword_overlap / keyword_total if keyword_total else 0.0
+
+        # Weighted overall score
+        overall = jaccard * 0.4 + struct_sim * 0.35 + keyword_sim * 0.25
+
+        return {
+            "token_overlap_count": len(intersection),
+            "token_union_count": len(union),
+            "jaccard_similarity": round(jaccard, 4),
+            "structural_similarity": round(struct_sim, 4),
+            "keyword_similarity": round(keyword_sim, 4),
+            "overall_similarity": round(overall, 4),
+        }
+
+    def match_score(self, query: str, candidate: dict[str, Any]) -> dict[str, Any]:
+        """Calculate a detailed match score between a query and a candidate problem.
+
+        Args:
+            query: The input question text.
+            candidate: A dict representing a solved example.
+
+        Returns:
+            A dict with individual score components and an overall score.
+        """
+        candidate_text = " ".join(
+            str(candidate.get(field, "")) for field in ("question", "reasoning_process", "answer", "topic")
+        )
+        comparison = self.compare_questions(query, candidate_text)
+
+        # Subject match boost
+        subject_boost = 0.0
+        query_lower = query.lower()
+        candidate_subject = str(candidate.get("subject", "")).lower()
+        if candidate_subject and candidate_subject in query_lower:
+            subject_boost = 0.15
+
+        # Topic match boost
+        topic_boost = 0.0
+        candidate_topic = str(candidate.get("topic", "")).lower()
+        if candidate_topic and candidate_topic in query_lower:
+            topic_boost = 0.1
+
+        overall = min(1.0, comparison["overall_similarity"] + subject_boost + topic_boost)
+
+        return {
+            "text_similarity": comparison["jaccard_similarity"],
+            "structural_similarity": comparison["structural_similarity"],
+            "keyword_similarity": comparison["keyword_similarity"],
+            "subject_boost": round(subject_boost, 4),
+            "topic_boost": round(topic_boost, 4),
+            "overall_score": round(overall, 4),
+        }
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _load_examples(self) -> list[dict[str, Any]]:
+        if not self.examples_path.exists():
+            return []
+        try:
+            return self.loader.load(self.examples_path)
+        except Exception:
+            return []
+
+    def _load_formula_cards(self) -> list[dict[str, Any]]:
+        if not self.formula_cards_path.exists():
+            return []
+        try:
+            return self.loader.load(self.formula_cards_path)
+        except Exception:
+            return []
+
+    def _normalize_text(self, text: str) -> str:
+        text = text.lower()
+        text = text.replace("，", ",").replace("。", ".").replace("；", ";")
+        text = re.sub(r"\s+", " ", text)
+        return text
+
+    def _tokenize(self, text: str) -> list[str]:
+        return re.findall(r"[a-z0-9\u4e00-\u9fff]+", text.lower())
+
+    def _extract_structural_features(self, text: str) -> dict[str, Any]:
+        """Extract structural features from question text for comparison."""
+        features: dict[str, Any] = {}
+
+        # Matrix patterns
+        if re.search(r"\[\s*\[.+?\]\s*\]", text):
+            features["has_matrix_literal"] = True
+        if re.search(r"\|\s*[^|]+?\s*\|", text):
+            features["has_determinant_notation"] = True
+
+        # Numeric lists (resistors, etc.)
+        if re.findall(r"\d+\s*[Ω欧姆]", text):
+            features["has_resistor_values"] = True
+
+        # Equation patterns
+        if "=" in text:
+            features["has_equation"] = True
+
+        # Calculus patterns
+        if any(k in text for k in ("∫", "∂", "d/d", "lim", "→")):
+            features["has_calculus_symbol"] = True
+
+        # Physics patterns
+        if any(k in text for k in ("kg", "m/s", "N", "J", "W", "Ω", "V", "A")):
+            features["has_physics_units"] = True
+
+        # Question type
+        if any(k in text for k in ("证明", "prove", "求证")):
+            features["question_type"] = "proof"
+        elif any(k in text for k in ("计算", "求", "compute", "calculate", "find")):
+            features["question_type"] = "compute"
+        else:
+            features["question_type"] = "unknown"
+
+        return features
+
+    def _match_formula_score(self, query: str, card: dict[str, Any]) -> dict[str, Any]:
+        """Score a formula card against a query."""
+        card_text = " ".join(
+            str(card.get(field, "")) for field in ("topic", "formula", "conditions", "common_traps")
+        )
+        comparison = self.compare_questions(query, card_text)
+
+        subject_boost = 0.0
+        candidate_subject = str(card.get("subject", "")).lower()
+        if candidate_subject and candidate_subject in query.lower():
+            subject_boost = 0.15
+
+        topic_boost = 0.0
+        candidate_topic = str(card.get("topic", "")).lower()
+        if candidate_topic and candidate_topic in query.lower():
+            topic_boost = 0.1
+
+        overall = min(1.0, comparison["overall_similarity"] + subject_boost + topic_boost)
+
+        return {
+            "text_similarity": comparison["jaccard_similarity"],
+            "structural_similarity": comparison["structural_similarity"],
+            "keyword_similarity": comparison["keyword_similarity"],
+            "subject_boost": round(subject_boost, 4),
+            "topic_boost": round(topic_boost, 4),
+            "overall_score": round(overall, 4),
+        }

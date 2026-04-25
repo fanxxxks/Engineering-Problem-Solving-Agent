@@ -1,16 +1,16 @@
-from eng_solver_agent.tools.circuit_tool import CircuitTool
+from eng_solver_agent.tools import NumericalComputationTool
 from tests._helpers import approx_equal
 
 
 def test_circuit_tool_equivalent_resistance() -> None:
-    tool = CircuitTool()
+    tool = NumericalComputationTool()
 
     assert approx_equal(tool.equivalent_resistance([2, 3, 5], topology="series"), 10.0)
     assert approx_equal(tool.equivalent_resistance([2, 2], topology="parallel"), 1.0)
 
 
 def test_circuit_tool_node_analysis() -> None:
-    tool = CircuitTool()
+    tool = NumericalComputationTool()
 
     result = tool.node_analysis(
         {
@@ -27,7 +27,7 @@ def test_circuit_tool_node_analysis() -> None:
 
 
 def test_circuit_tool_mesh_and_first_order_response() -> None:
-    tool = CircuitTool()
+    tool = NumericalComputationTool()
 
     mesh = tool.mesh_analysis([[3, 1], [1, 2]], [9, 8])
     assert approx_equal(mesh[0], 2.0)

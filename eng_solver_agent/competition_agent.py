@@ -29,7 +29,7 @@ from eng_solver_agent.retrieval import Retriever
 from eng_solver_agent.router import QuestionRouter
 from eng_solver_agent.schemas import AnalyzeResult, DraftResult, RetrievalResult
 from eng_solver_agent.tool_dispatcher import ToolDispatcher
-from eng_solver_agent.tools import AlgebraTool, CalculusTool, CircuitTool, PhysicsTool
+from eng_solver_agent.tools import NumericalComputationTool, SimilarProblemTool
 from eng_solver_agent.verifier import validate_final_answer
 
 
@@ -274,11 +274,13 @@ class CompetitionAgent:
         return True
 
     def _build_default_tools(self) -> dict[str, Any]:
+        numerical_tool = NumericalComputationTool()
         return {
-            "physics": PhysicsTool(),
-            "circuits": CircuitTool(),
-            "linalg": AlgebraTool(),
-            "calculus": CalculusTool(),
+            "physics": numerical_tool,
+            "circuits": numerical_tool,
+            "linalg": numerical_tool,
+            "calculus": numerical_tool,
+            "similarity": SimilarProblemTool(),
         }
 
     def _build_default_retriever(self) -> Retriever:
