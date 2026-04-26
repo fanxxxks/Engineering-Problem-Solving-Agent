@@ -34,6 +34,10 @@ class _TeeWriter:
         self._file = open(log_path, "w", encoding="utf-8")
         self._terminal = _original_stdout
 
+    @property
+    def encoding(self) -> str:
+        return getattr(self._terminal, "encoding", "utf-8")
+
     def write(self, text: str) -> None:
         try:
             self._terminal.write(text)
@@ -43,6 +47,7 @@ class _TeeWriter:
             except Exception:
                 pass
         clean = re.sub(r"\033\[[0-9;]*m", "", text)
+        clean = clean.replace("\r", "")
         self._file.write(clean)
 
     def flush(self) -> None:
@@ -109,7 +114,7 @@ def is_verbose() -> bool:
 
 # ── ANSI colour helpers ────────────────────────────────────────────────────────
 
-_NO_COLOR = not sys.stdout.isatty() or os.getenv("NO_COLOR")
+_NO_COLOR = not _original_stdout.isatty() or os.getenv("NO_COLOR")
 
 _C = {
     "reset":   "\033[0m",

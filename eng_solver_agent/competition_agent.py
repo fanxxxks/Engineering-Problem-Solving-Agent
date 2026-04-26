@@ -166,7 +166,7 @@ class CompetitionAgent:
         return normalized
 
     def _analyze_question(self, question: dict[str, Any], subject_hint: str) -> AnalyzeResult:
-        step("CompetitionAgent", "🤔 调用大模型分析题目...", color="magenta")
+        step("CompetitionAgent", "[分析] 调用大模型分析题目...", color="magenta")
         if self._should_try_remote_client():
             try:
                 response = self.kimi_client.chat_json(

@@ -238,7 +238,7 @@ class UnifiedAgent:
         return normalized
 
     def _analyze(self, question: dict[str, Any], subject_hint: str) -> AnalyzeResult:
-        step("UnifiedAgent", "🤔 调用大模型分析题目...", color="magenta")
+        step("UnifiedAgent", "[分析] 调用大模型分析题目...", color="magenta")
         if self._has_llm():
             try:
                 response = self.kimi_client.chat_json(

@@ -209,7 +209,7 @@ class EngineeringSolverAgent:
         return normalized
 
     def _analyze_question(self, question: dict[str, Any], subject_hint: str) -> AnalyzeResult:
-        step("Agent", "🤔 调用大模型分析题目...", color="magenta")
+        step("Agent", "[分析] 调用大模型分析题目...", color="magenta")
         retrieval_context = self._retrieve_context(question, subject_hint, None)
         if self._should_try_remote_client():
             try:

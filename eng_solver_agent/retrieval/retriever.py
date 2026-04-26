@@ -56,7 +56,7 @@ class Retriever:
     ) -> RetrievalResult:
         subject_key = self._normalize_subject(subject)
         query_terms = set(self._tokenize(query))
-        step("Retriever", f"📚 检索知识库: subject={subject_key}, topic={topic}, query='{query[:60]}...'", color="magenta")
+        step("Retriever", f"[检索] 检索知识库: subject={subject_key}, topic={topic}, query='{query[:60]}...'", color="magenta")
         formula_hits = self._rank_cards(self.formula_cards, self._formula_tokens, query_terms, subject_key, topic, top_k)
         example_hits = self._rank_cards(self.solved_examples, self._example_tokens, query_terms, subject_key, topic, top_k)
         matched_terms = sorted(query_terms)
