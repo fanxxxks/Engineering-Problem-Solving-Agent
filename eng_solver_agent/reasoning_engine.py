@@ -44,6 +44,14 @@ class ReActEngine:
     def __init__(self, llm_client: Any, tools: dict[str, Any]) -> None:
         self.llm_client = llm_client
         self.tools = tools
+        # Build a reverse lookup map: method_name -> (tool_name, tool_instance)
+        self._method_registry: dict[str, tuple[str, Any]] = {}
+        for tool_name, tool in tools.items():
+            for attr_name in dir(tool):
+                if not attr_name.startswith("_") and callable(getattr(tool, attr_name, None)):
+                    # Register method -> (tool_name, tool); first one wins on collision
+                    if attr_name not in self._method_registry:
+                        self._method_registry[attr_name] = (tool_name, tool)
 
     def solve(self, question: dict[str, Any], subject: str, topic: str) -> ReasoningResult:
         """Run the ReAct reasoning loop to solve a problem."""
@@ -103,13 +111,18 @@ class ReActEngine:
             f"【题目】{q_text}\n"
             f"【学科】{subject}\n"
             f"【知识点】{topic}\n\n"
-            f"可用的工具：\n{self._describe_tools()}\n\n"
+            f"可用的工具及调用方式（请严格按照以下格式调用）：\n{self._describe_tools()}\n\n"
             f"请按照以下格式输出：\n"
             f"思考: [你的推理过程]\n"
             f"行动: [工具名称] 或 [无] 或 [最终答案]\n"
             f"行动输入: [工具参数JSON] 或 [空]\n\n"
-            f"如果不需要工具，行动填'无'。\n"
-            f"如果已经得到最终答案，行动填'最终答案'，思考中写出答案。"
+            f"规则说明：\n"
+            f"1. 工具名称必须是上方列出的工具名（如 physics / calculus / linalg / circuits），不要加命名空间前缀。\n"
+            f"2. 如果要调用某个具体方法（如 newton_second_law / diff / determinant），请在'行动输入'中通过 method 字段指定。\n"
+            f"3. 也可以使用快捷方式：直接写方法名作为'行动'（如 diff），系统会自动找到对应工具。\n"
+            f"4. 行动输入必须是合法的 JSON 对象。\n"
+            f"5. 如果不需要工具，行动填'无'。\n"
+            f"6. 如果已经得到最终答案，行动填'最终答案'，思考中写出答案。"
         )
         return [
             {"role": "system", "content": system_prompt},
@@ -117,11 +130,29 @@ class ReActEngine:
         ]
 
     def _describe_tools(self) -> str:
-        descriptions = []
+        """Return a human-readable description of all available tools.
+
+        Each tool is described as:
+        - tool_name: tool docstring / purpose
+          Methods: method1, method2, ...
+        """
+        lines: list[str] = []
         for name, tool in self.tools.items():
-            methods = [m for m in dir(tool) if not m.startswith("_") and callable(getattr(tool, m))]
-            descriptions.append(f"- {name}: {', '.join(methods)}")
-        return "\n".join(descriptions)
+            doc = (tool.__doc__ or "").split("\n")[0].strip()
+            methods = [m for m in dir(tool) if not m.startswith("_") and callable(getattr(tool, m, None))]
+            lines.append(f"- {name}: {doc}")
+            lines.append(f"  可用方法: {', '.join(methods)}")
+        # Append a lookup table for commonly used methods
+        lines.append("")
+        lines.append("常用方法速查表（可直接作为'行动'使用）：")
+        seen: set[str] = set()
+        for method, (tool_name, _) in self._method_registry.items():
+            if method in ("solve", "compute"):
+                continue
+            if method not in seen:
+                seen.add(method)
+                lines.append(f"  {method} -> {tool_name}")
+        return "\n".join(lines)
 
     def _reason_step(self, messages: list[dict[str, str]], step_num: int) -> ReasoningStep:
         """Ask the LLM for the next reasoning step."""
@@ -188,22 +219,73 @@ class ReActEngine:
         )
 
     def _execute_action(self, action: str, action_input: dict[str, Any]) -> str:
-        """Execute a tool action and return the observation."""
-        tool = self.tools.get(action)
-        if tool is None:
-            return f"错误: 未找到工具 '{action}'"
+        """Execute a tool action and return the observation.
 
-        try:
+        Supports multiple calling conventions:
+        1. action="tool_name.method_name" → e.g. "physics.newton_second_law"
+        2. action="method_name" → lookup in _method_registry
+        3. action="tool_name" → use method from action_input["method"] (default "solve")
+        4. action="compute" or "solve" → route to NumericalComputationTool
+        """
+        action = action.strip()
+
+        # Convention 1: "tool.method" syntax
+        if "." in action:
+            parts = action.split(".", 1)
+            tool_name, method_name = parts[0].strip(), parts[1].strip()
+            tool = self.tools.get(tool_name)
+            if tool is None:
+                return f"错误: 未找到工具 '{tool_name}'"
+            method = getattr(tool, method_name, None)
+            if method is None:
+                return f"错误: 工具 '{tool_name}' 没有方法 '{method_name}'"
+            try:
+                result = method(**action_input)
+                return str(result)
+            except Exception as exc:
+                return f"错误: {type(exc).__name__}: {exc}"
+
+        # Convention 2: action is a known tool name
+        tool = self.tools.get(action)
+        if tool is not None:
             input_copy = dict(action_input)
             method_name = input_copy.pop("method", "solve")
             method = getattr(tool, method_name, None)
             if method is None:
                 return f"错误: 工具 '{action}' 没有方法 '{method_name}'"
+            try:
+                result = method(**input_copy)
+                return str(result)
+            except Exception as exc:
+                return f"错误: {type(exc).__name__}: {exc}"
 
-            result = method(**input_copy)
-            return str(result)
-        except Exception as exc:
-            return f"错误: {type(exc).__name__}: {exc}"
+        # Convention 3: action is a method name → find the tool that has it
+        if action in self._method_registry:
+            tool_name, tool = self._method_registry[action]
+            method = getattr(tool, action, None)
+            if method is not None:
+                try:
+                    result = method(**action_input)
+                    return str(result)
+                except Exception as exc:
+                    return f"错误: {type(exc).__name__}: {exc}"
+
+        # Convention 4: special shortcuts for compute / solve
+        if action in ("compute", "solve"):
+            for name, tool in self.tools.items():
+                if hasattr(tool, action):
+                    method = getattr(tool, action)
+                    try:
+                        result = method(**action_input)
+                        return str(result)
+                    except Exception as exc:
+                        return f"错误: {type(exc).__name__}: {exc}"
+
+        return (
+            f"错误: 未找到工具或方法 '{action}'。"
+            f"可用工具: {list(self.tools.keys())}。"
+            f"可用快捷方法: {list(self._method_registry.keys())[:20]}..."
+        )
 
     def _format_reasoning_process(self, steps: list[ReasoningStep]) -> str:
         """Format all steps into a competition-ready reasoning_process string."""

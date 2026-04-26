@@ -36,6 +36,7 @@ REQUEST_FIELD_MAP = {
 DEFAULT_HEADERS = {
     "Content-Type": "application/json",
     "Accept": "application/json",
+    "User-Agent": "Engineering-Problem-Solving-Agent/1.0",
 }
 AUTH_HEADER_NAME = "Authorization"
 AUTH_HEADER_PREFIX = "Bearer "
@@ -179,12 +180,23 @@ class KimiClient:
     def _build_request(self, payload: dict[str, Any]) -> urllib_request.Request:
         if not self.config.base_url:
             raise RuntimeError("KIMI_BASE_URL is not configured")
-        url = urljoin(self.config.base_url.rstrip("/") + "/", self.config.endpoint_path.lstrip("/"))
+        url = self._build_url()
         headers = dict(DEFAULT_HEADERS)
         if self.config.api_key:
             headers[AUTH_HEADER_NAME] = f"{AUTH_HEADER_PREFIX}{self.config.api_key}"
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         return urllib_request.Request(url=url, data=body, headers=headers, method="POST")
+
+    def _build_url(self) -> str:
+        """Build the final request URL, handling duplicate path segments safely."""
+        base = self.config.base_url.rstrip("/")
+        path = self.config.endpoint_path.lstrip("/")
+        # If base already ends with the first segment of path, avoid duplication
+        base_segments = base.split("/")
+        path_segments = path.split("/")
+        if base_segments and path_segments and base_segments[-1] == path_segments[0]:
+            path = "/".join(path_segments[1:])
+        return f"{base}/{path}"
 
     def _decode_json(self, raw: bytes) -> dict[str, Any]:
         decoded = json.loads(raw.decode("utf-8"))
