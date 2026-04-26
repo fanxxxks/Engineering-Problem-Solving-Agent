@@ -1,1 +1,9 @@
-# No external runtime dependencies are required for this minimal scaffold.
+langchain==0.3.25
+langchain-core==0.3.65
+langchain-community==0.3.24
+langchain-openai==0.3.16
+langchain-huggingface
+numpy
+sympy
+sentence-transformers
+faiss-cpu

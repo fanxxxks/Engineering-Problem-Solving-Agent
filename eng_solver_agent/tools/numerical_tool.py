@@ -12,8 +12,8 @@ import math
 import re
 from typing import Any
 
+from eng_solver_agent.exceptions import ToolUnsupportedError
 from eng_solver_agent.tools._math_support import (
-    ToolUnsupportedError,
     determinant,
     eigenpairs_2x2,
     inverse,
@@ -418,6 +418,25 @@ class NumericalComputationTool:
             if match:
                 knowns[key] = float(match.group(1))
         return knowns
+
+    # ------------------------------------------------------------------
+    # Exec-based symbolic/numeric engine (example.py pattern)
+    # ------------------------------------------------------------------
+
+    def execute_code(self, code: str) -> str:
+        """Execute Python/SymPy code in a sandboxed environment.
+
+        This follows the example.py pattern, exposing sympy, math, and numpy
+        via a restricted globals dict with stdout capture.
+
+        Args:
+            code: A Python code string. The caller should use print() to
+                output results so they are captured and returned.
+
+        Returns:
+            Captured stdout from the executed code, or an error message.
+        """
+        return _ExecEngine().execute(code)
 
 
 # ------------------------------------------------------------------------------
@@ -1073,3 +1092,62 @@ class _PhysicsEngine:
                 raise ValueError("momentum target 'impulse' requires F and dt")
             return float(F * dt)
         raise ToolUnsupportedError(f"unsupported momentum target: {target_raw}")
+
+
+class _ExecEngine:
+    """Sandboxed Python/SymPy execution engine — follows example.py pattern."""
+
+    def execute(self, code: str) -> str:
+        from io import StringIO
+
+        safe_globals = {
+            "__builtins__": {
+                "abs": abs,
+                "all": all,
+                "any": any,
+                "bool": bool,
+                "complex": complex,
+                "dict": dict,
+                "float": float,
+                "int": int,
+                "len": len,
+                "list": list,
+                "map": map,
+                "max": max,
+                "min": min,
+                "pow": pow,
+                "print": print,
+                "range": range,
+                "round": round,
+                "set": set,
+                "str": str,
+                "sum": sum,
+                "tuple": tuple,
+                "zip": zip,
+            },
+            "json": __import__("json"),
+            "math": __import__("math"),
+            "np": __import__("numpy"),
+            "sympy": __import__("sympy"),
+            # Frequently used sympy symbols exposed for convenience
+            "diff": __import__("sympy").diff,
+            "integrate": __import__("sympy").integrate,
+            "limit": __import__("sympy").limit,
+            "oo": __import__("sympy").oo,
+            "pi": __import__("sympy").pi,
+            "simplify": __import__("sympy").simplify,
+            "solve": __import__("sympy").solve,
+            "sqrt": __import__("sympy").sqrt,
+            "symbols": __import__("sympy").symbols,
+        }
+
+        old_stdout = __import__("sys").stdout
+        __import__("sys").stdout = redirected = StringIO()
+        try:
+            exec(code, safe_globals)
+            __import__("sys").stdout = old_stdout
+            output = redirected.getvalue().strip()
+            return output if output else "代码执行成功，但没有输出。请在代码中使用 print() 输出结果。"
+        except Exception as exc:
+            __import__("sys").stdout = old_stdout
+            return f"代码执行出错: {type(exc).__name__}: {exc}"

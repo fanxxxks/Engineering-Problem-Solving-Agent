@@ -28,6 +28,7 @@ from eng_solver_agent.llm.kimi_client import KimiClient
 from eng_solver_agent.llm.prompt_builder import build_analyze_messages, build_draft_messages
 from eng_solver_agent.reasoning_engine import ReActEngine
 from eng_solver_agent.retrieval import Retriever
+from eng_solver_agent.retrieval.langchain_retriever import LangChainRetriever
 from eng_solver_agent.router import QuestionRouter
 from eng_solver_agent.schemas import AnalyzeResult, DraftResult
 from eng_solver_agent.tool_dispatcher import ToolDispatcher
@@ -384,7 +385,13 @@ class UnifiedAgent:
 
     def _build_default_retriever(self) -> Retriever:
         retrieval_dir = Path(__file__).resolve().parent / "retrieval"
-        return Retriever(
-            formula_cards_path=retrieval_dir / "formula_cards.json",
-            solved_examples_path=retrieval_dir / "solved_examples.jsonl",
-        )
+        try:
+            return LangChainRetriever(
+                formula_cards_path=retrieval_dir / "formula_cards.json",
+                solved_examples_path=retrieval_dir / "solved_examples.jsonl",
+            )
+        except Exception:
+            return Retriever(
+                formula_cards_path=retrieval_dir / "formula_cards.json",
+                solved_examples_path=retrieval_dir / "solved_examples.jsonl",
+            )

@@ -16,9 +16,12 @@ from dataclasses import dataclass
 from fractions import Fraction
 from typing import Any, Callable
 
-
-class ToolUnsupportedError(NotImplementedError):
-    """Raised when an operation needs sympy or a broader solver."""
+# Re-export from the unified exception hierarchy while keeping backward compat.
+try:
+    from eng_solver_agent.exceptions import ToolUnsupportedError
+except Exception:
+    class ToolUnsupportedError(NotImplementedError):  # type: ignore[no-redef]
+        """Raised when an operation needs sympy or a broader solver."""
 
 
 def load_sympy() -> Any | None:
