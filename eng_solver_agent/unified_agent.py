@@ -22,6 +22,7 @@ from typing import Any
 
 from eng_solver_agent.adapter import QuestionAdapter
 from eng_solver_agent.config import Settings
+from eng_solver_agent.debug_logger import log_pipeline_stage, section, step, start_file_logging
 from eng_solver_agent.formatter import format_submission_item
 from eng_solver_agent.llm.kimi_client import KimiClient
 from eng_solver_agent.llm.prompt_builder import build_analyze_messages, build_draft_messages
@@ -85,6 +86,10 @@ class UnifiedAgent:
         normalized = self._normalize(question)
         route = self.router.route_with_confidence(normalized)
 
+        qid = normalized.get("question_id", "?")
+        section(f"[开始] 开始解题: {qid}  |  学科: {route.subject}  |  模式: {mode}")
+        step("UnifiedAgent", f"题目: {str(normalized.get('question', ''))[:120]}...")
+
         try:
             if mode == "react":
                 result = self._solve_react(normalized, route.subject)
@@ -147,6 +152,7 @@ class UnifiedAgent:
 
     def _solve_react(self, question: dict[str, Any], subject: str) -> dict[str, Any]:
         """ReAct mode: Think -> Act -> Observe loop."""
+        log_pipeline_stage("ReAct 推理模式", f"subject={subject}")
         if not self._has_llm():
             return self._solve_legacy(question, subject)
         try:
@@ -159,14 +165,17 @@ class UnifiedAgent:
                     reasoning_process=react_result.reasoning_process,
                     answer=react_result.answer,
                 )
-        except Exception:
-            pass
+        except Exception as exc:
+            log_pipeline_stage("ReAct 失败，回退到传统模式", str(exc))
         return self._solve_legacy(question, subject)
 
     def _solve_legacy(self, question: dict[str, Any], subject: str) -> dict[str, Any]:
         """Legacy two-stage pipeline: analyze -> tool -> draft."""
+        log_pipeline_stage("传统模式: 分析阶段")
         analysis = self._analyze(question, subject)
+        log_pipeline_stage("传统模式: 工具计算阶段")
         tool_result = self.dispatcher.dispatch(question, analysis)
+        log_pipeline_stage("传统模式: 生成答案阶段")
         draft = self._draft(question, analysis, tool_result)
         return format_submission_item(
             question_id=question["question_id"],
@@ -176,6 +185,7 @@ class UnifiedAgent:
 
     def _solve_llm_only(self, question: dict[str, Any]) -> dict[str, Any]:
         """Direct LLM solve, bypassing tools entirely."""
+        log_pipeline_stage("纯 LLM 模式 (不调用工具)")
         if not self._has_llm():
             return self._fallback_no_llm(question)
         try:
@@ -201,6 +211,7 @@ class UnifiedAgent:
 
     def _solve_tool_only(self, question: dict[str, Any], subject: str) -> dict[str, Any]:
         """Tools only, no LLM. Fast but limited to deterministic computations."""
+        log_pipeline_stage("纯工具模式 (不调用大模型)")
         analysis = self._fallback_analyze(question, subject)
         tool_result = self.dispatcher.dispatch(question, analysis)
         if tool_result["success"]:
@@ -226,6 +237,7 @@ class UnifiedAgent:
         return normalized
 
     def _analyze(self, question: dict[str, Any], subject_hint: str) -> AnalyzeResult:
+        step("UnifiedAgent", "🤔 调用大模型分析题目...", color="magenta")
         if self._has_llm():
             try:
                 response = self.kimi_client.chat_json(
@@ -237,9 +249,11 @@ class UnifiedAgent:
                         "target_form", "possible_traps",
                     ),
                 )
-                return AnalyzeResult.model_validate(response)
-            except Exception:
-                pass
+                result = AnalyzeResult.model_validate(response)
+                step("UnifiedAgent", f"[成功] 分析完成: subject={result.subject}, topic={result.topic}", color="green")
+                return result
+            except Exception as exc:
+                step("UnifiedAgent", f"[失败] 大模型分析失败: {exc}", color="red")
         return self._fallback_analyze(question, subject_hint)
 
     def _draft(
@@ -248,6 +262,7 @@ class UnifiedAgent:
         analysis: AnalyzeResult,
         tool_result: dict[str, Any],
     ) -> DraftResult:
+        step("UnifiedAgent", "[生成] 调用大模型生成最终答案...", color="magenta")
         if self._has_llm():
             try:
                 response = self.kimi_client.chat_json(
@@ -257,9 +272,11 @@ class UnifiedAgent:
                 )
                 draft = DraftResult.model_validate(response)
                 if str(draft.reasoning_process).strip() and str(draft.answer).strip():
+                    step("UnifiedAgent", f"[成功] 答案生成完成 (answer: {str(draft.answer)[:100]})", color="green")
                     return draft
-            except Exception:
-                pass
+            except Exception as exc:
+                step("UnifiedAgent", f"[失败] 大模型生成答案失败: {exc}", color="red")
+        step("UnifiedAgent", "[失败] 使用回退方案生成答案", color="yellow")
         return self._build_fallback_draft(question, analysis, tool_result)
 
     def _build_fallback_draft(

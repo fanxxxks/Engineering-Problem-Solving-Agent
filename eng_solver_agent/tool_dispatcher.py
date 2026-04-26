@@ -10,6 +10,7 @@ import json
 import re
 from typing import Any
 
+from eng_solver_agent.debug_logger import log_tool_dispatch, log_tool_result, log_error
 from eng_solver_agent.schemas import AnalyzeResult
 
 
@@ -37,19 +38,36 @@ class ToolDispatcher:
         """Dispatch a question to the appropriate tool and return structured result."""
         tool = self.tools.get(analysis.subject)
         if tool is None:
-            return self._build_result(analysis.subject, False, None, {}, "No tool registered.")
+            result = self._build_result(analysis.subject, False, None, {}, "No tool registered.")
+            log_tool_result(analysis.subject, False, None, "No tool registered.")
+            return result
         try:
+            log_tool_dispatch(analysis.subject, "auto", {
+                "question_id": question.get("question_id", "?"),
+                "subject": analysis.subject,
+                "topic": analysis.topic,
+            })
             payload = self._do_dispatch(tool, question, analysis)
             if isinstance(payload, dict):
-                return self._build_result(
+                result = self._build_result(
                     payload.get("tool_name", analysis.subject),
                     bool(payload.get("success", True)),
                     payload.get("output", ""),
                     payload.get("metadata", {}),
                     payload.get("error_message"),
                 )
-            return self._build_result(analysis.subject, True, payload, {}, None)
+                log_tool_result(
+                    payload.get("tool_name", analysis.subject),
+                    bool(payload.get("success", True)),
+                    payload.get("output", ""),
+                    payload.get("error_message"),
+                )
+                return result
+            result = self._build_result(analysis.subject, True, payload, {}, None)
+            log_tool_result(analysis.subject, True, payload)
+            return result
         except Exception as exc:
+            log_error("ToolDispatcher", exc)
             return self._build_result(
                 analysis.subject, False, None, {"error": type(exc).__name__}, f"{type(exc).__name__}: {exc}"
             )

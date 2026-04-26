@@ -17,6 +17,15 @@ from urllib import error as urllib_error
 from urllib import request as urllib_request
 from urllib.parse import urljoin
 
+from eng_solver_agent.debug_logger import (
+    is_verbose,
+    log_llm_request,
+    log_llm_response,
+    log_llm_error,
+    log_json_parse,
+    log_error,
+)
+
 
 DEFAULT_ENDPOINT_PATH = os.getenv("KIMI_ENDPOINT_PATH", "/v1/chat/completions")
 REQUEST_FIELD_MAP = {
@@ -76,14 +85,19 @@ class KimiClient:
 
     def chat(self, messages: list[dict[str, Any]], temperature: float | None = None) -> str:
         temp = temperature if temperature is not None else self.config.temperature
+        log_llm_request(messages, model=self.config.model, temperature=temp, call_label="[LLM] 大模型请求")
         payload = self._build_payload(messages, temperature=temp)
-        response = self._request_json(payload)
+        try:
+            response = self._request_json(payload)
+        except Exception as exc:
+            log_llm_error(exc, 1, self.config.max_retry + 1)
+            raise
         content = self._extract_content(response)
         if not content or not str(content).strip():
             raise ValueError("empty response content")
-        if isinstance(content, (dict, list)):
-            return json.dumps(content, ensure_ascii=False)
-        return str(content)
+        result = json.dumps(content, ensure_ascii=False) if isinstance(content, (dict, list)) else str(content)
+        log_llm_response(result, call_label="[LLM] 大模型响应")
+        return result
 
     def chat_json(
         self,
@@ -98,7 +112,9 @@ class KimiClient:
         
         try:
             data = json.loads(cleaned_content)
+            log_json_parse(cleaned_content, success=True)
         except json.JSONDecodeError as exc:
+            log_json_parse(content, success=False, error=str(exc))
             raise ValueError("model response is not valid JSON") from exc
         if not isinstance(data, dict):
             raise ValueError("model response JSON must be an object")
@@ -152,6 +168,7 @@ class KimiClient:
                 return self._decode_json(raw)
             except (urllib_error.URLError, TimeoutError, ValueError, json.JSONDecodeError) as exc:
                 last_error = exc
+                log_llm_error(exc, attempt + 1, self.config.max_retry + 1)
                 if attempt >= self.config.max_retry:
                     raise
                 time.sleep(0)

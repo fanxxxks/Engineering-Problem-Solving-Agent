@@ -24,6 +24,7 @@ from typing import Any
 
 from eng_solver_agent.adapter import QuestionAdapter
 from eng_solver_agent.config import Settings
+from eng_solver_agent.debug_logger import log_pipeline_stage, log_tool_dispatch, log_tool_result, section, step, start_file_logging
 from eng_solver_agent.formatter import format_submission_item
 from eng_solver_agent.llm.kimi_client import KimiClient
 from eng_solver_agent.llm.prompt_builder import build_analyze_messages, build_draft_messages
@@ -151,8 +152,15 @@ class EngineeringSolverAgent:
     def solve_one(self, question: dict[str, Any]) -> dict[str, Any]:
         normalized = self._normalize_input(question)
         route_decision = self.router.route_with_confidence(normalized)
+        qid = normalized.get("question_id", "?")
+        section(f"[开始] [Agent] 开始解题: {qid}  |  学科: {route_decision.subject}")
+        step("Agent", f"题目: {str(normalized.get('question', ''))[:120]}...")
+
+        log_pipeline_stage("分析题目")
         analysis = self._analyze_question(normalized, route_decision.subject)
+        log_pipeline_stage("工具计算")
         tool_result = self._run_tool(normalized, analysis)
+        log_pipeline_stage("生成答案")
         draft = self._draft_answer(normalized, analysis, tool_result)
         result = format_submission_item(
             question_id=normalized["question_id"],
@@ -201,6 +209,7 @@ class EngineeringSolverAgent:
         return normalized
 
     def _analyze_question(self, question: dict[str, Any], subject_hint: str) -> AnalyzeResult:
+        step("Agent", "🤔 调用大模型分析题目...", color="magenta")
         retrieval_context = self._retrieve_context(question, subject_hint, None)
         if self._should_try_remote_client():
             try:
@@ -218,27 +227,38 @@ class EngineeringSolverAgent:
                         "possible_traps",
                     ),
                 )
-                return AnalyzeResult.model_validate(response)
-            except Exception:
-                pass
+                result = AnalyzeResult.model_validate(response)
+                step("Agent", f"[成功] 分析完成: subject={result.subject}, topic={result.topic}", color="green")
+                return result
+            except Exception as exc:
+                step("Agent", f"[失败] 大模型分析失败: {exc}", color="red")
         return self._fallback_analyze(question, subject_hint)
 
     def _run_tool(self, question: dict[str, Any], analysis: AnalyzeResult) -> dict[str, Any]:
+        step("Agent", f"[工具] 调用工具 (subject={analysis.subject})...", color="yellow")
         tool = self.tools.get(analysis.subject)
         if tool is None:
-            return self._build_tool_result(analysis.subject, False, None, {}, "No tool registered.")
+            result = self._build_tool_result(analysis.subject, False, None, {}, "No tool registered.")
+            log_tool_result(analysis.subject, False, None, "No tool registered.")
+            return result
         try:
+            log_tool_dispatch(analysis.subject, "auto", {"question_id": question.get("question_id", "?"), "subject": analysis.subject})
             payload = self._dispatch_tool(tool, question, analysis)
             if isinstance(payload, dict):
-                return self._build_tool_result(
+                result = self._build_tool_result(
                     payload.get("tool_name", analysis.subject),
                     bool(payload.get("success", True)),
                     payload.get("output", ""),
                     payload.get("metadata", {}),
                     payload.get("error_message"),
                 )
-            return self._build_tool_result(analysis.subject, True, payload, {}, None)
+                log_tool_result(analysis.subject, bool(payload.get("success", True)), payload.get("output", ""), payload.get("error_message"))
+                return result
+            result = self._build_tool_result(analysis.subject, True, payload, {}, None)
+            log_tool_result(analysis.subject, True, payload)
+            return result
         except Exception as exc:
+            log_tool_result(analysis.subject, False, None, str(exc))
             return self._build_tool_result(
                 analysis.subject,
                 False,
@@ -253,6 +273,7 @@ class EngineeringSolverAgent:
         analysis: AnalyzeResult,
         tool_result: dict[str, Any],
     ) -> DraftResult:
+        step("Agent", "[生成] 调用大模型生成最终答案...", color="magenta")
         retrieval_context = self._retrieve_context(question, analysis.subject, analysis.topic)
         if self._should_try_remote_client():
             try:
@@ -269,9 +290,11 @@ class EngineeringSolverAgent:
                 )
                 draft = DraftResult.model_validate(response)
                 if str(draft.reasoning_process).strip() and str(draft.answer).strip():
+                    step("Agent", f"[成功] 答案生成完成 (answer: {str(draft.answer)[:100]})", color="green")
                     return draft
-            except Exception:
-                pass
+            except Exception as exc:
+                step("Agent", f"[失败] 大模型生成答案失败: {exc}", color="red")
+        step("Agent", "[失败] 使用回退方案生成答案", color="yellow")
         return self._fallback_draft(question, analysis, tool_result)
 
     # ------------------------------------------------------------------

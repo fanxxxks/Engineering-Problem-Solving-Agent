@@ -1,0 +1,30 @@
+def calculator(query: str) -> str:
+    """
+    执行 Python 数理计算代码。
+    支持 sympy（符号运算：求导、积分、方程求解）和 math/numpy（数值计算）。
+    """
+    safe_globals = {
+        "sympy": __import__("sympy"),
+        "math":  __import__("math"),
+        "np":    __import__("numpy"),
+        # 常用 sympy 函数直接暴露，方便模型调用
+        "symbols":   __import__("sympy").symbols,
+        "solve":     __import__("sympy").solve,
+        "diff":      __import__("sympy").diff,
+        "integrate": __import__("sympy").integrate,
+        "simplify":  __import__("sympy").simplify,
+        "pi":        __import__("sympy").pi,
+        "sqrt":      __import__("sympy").sqrt,
+        "print":     print,
+    }
+
+    old_stdout = sys.stdout
+    sys.stdout = redirected = StringIO()
+    try:
+        exec(query, safe_globals)
+        sys.stdout = old_stdout
+        output = redirected.getvalue().strip()
+        return output if output else "代码执行成功，但没有输出。请在代码中使用 print() 输出结果。"
+    except Exception as e:
+        sys.stdout = old_stdout
+        return f"代码执行出错: {str(e)}"

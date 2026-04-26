@@ -6,6 +6,8 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from eng_solver_agent.debug_logger import log_route, step
+
 
 @dataclass(frozen=True)
 class RouteDecision:
@@ -87,11 +89,13 @@ class QuestionRouter:
         confidence = min(0.99, 0.55 + (best_score / total_matches) * 0.35)
         if self._is_conflicted(scores):
             confidence = max(confidence, 0.72)
-        return RouteDecision(
+        decision = RouteDecision(
             subject=best_subject,
             confidence=round(confidence, 2),
             matched_rules=tuple(matches[best_subject]),
         )
+        log_route(decision.subject, decision.confidence, scores, decision.matched_rules)
+        return decision
 
     def _apply_structural_boosts(self, text: str, scores: dict[str, int], matches: dict[str, list[str]]) -> None:
         """Boost scores based on structural patterns (matrix literals, etc.)."""

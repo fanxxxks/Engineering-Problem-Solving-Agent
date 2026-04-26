@@ -14,6 +14,8 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
+from eng_solver_agent.debug_logger import log_react_step, log_react_final, log_pipeline_stage, step
+
 
 @dataclass
 class ReasoningStep:
@@ -45,41 +47,48 @@ class ReActEngine:
 
     def solve(self, question: dict[str, Any], subject: str, topic: str) -> ReasoningResult:
         """Run the ReAct reasoning loop to solve a problem."""
+        log_pipeline_stage("ReAct 推理循环", f"subject={subject}, topic={topic}, max_steps={self.MAX_STEPS}")
         result = ReasoningResult()
         messages = self._build_initial_messages(question, subject, topic)
 
         for step_num in range(1, self.MAX_STEPS + 1):
-            step = self._reason_step(messages, step_num)
-            result.steps.append(step)
+            step("ReActEngine", f"[循环] ReAct 第 {step_num}/{self.MAX_STEPS} 步...", color="cyan")
+            rs = self._reason_step(messages, step_num)
+            result.steps.append(rs)
 
-            if step.is_final:
+            if rs.is_final:
                 result.reasoning_process = self._format_reasoning_process(result.steps)
-                result.answer = step.thought
+                result.answer = rs.thought
                 result.success = True
+                log_react_final(step_num, rs.thought, True)
                 return result
 
-            if step.action and step.action != "none":
-                observation = self._execute_action(step.action, step.action_input or {})
-                step.observation = observation
+            if rs.action and rs.action != "none":
+                log_react_step(step_num, rs.thought, rs.action, rs.action_input, None)
+                observation = self._execute_action(rs.action, rs.action_input or {})
+                rs.observation = observation
+                log_react_step(step_num, rs.thought, rs.action, rs.action_input, observation)
                 result.tool_calls.append({
                     "step": step_num,
-                    "tool": step.action,
-                    "input": step.action_input,
+                    "tool": rs.action,
+                    "input": rs.action_input,
                     "output": observation,
                 })
                 feedback = (
-                    f"【行动】调用工具: {step.action}({json.dumps(step.action_input or {}, ensure_ascii=False)})\n"
+                    f"【行动】调用工具: {rs.action}({json.dumps(rs.action_input or {}, ensure_ascii=False)})\n"
                     f"【观察】{observation}\n"
                     f"请继续下一步推理。"
                 )
                 messages.append({"role": "user", "content": feedback})
             else:
-                messages.append({"role": "user", "content": f"【思考】{step.thought}\n请继续下一步推理。"})
+                log_react_step(step_num, rs.thought, None, None, None)
+                messages.append({"role": "user", "content": f"【思考】{rs.thought}\n请继续下一步推理。"})
 
         # Max steps reached
         result.reasoning_process = self._format_reasoning_process(result.steps)
         result.answer = result.steps[-1].thought if result.steps else "暂无法完成推理"
         result.success = False
+        log_react_final(step_num, result.answer, False)
         return result
 
     def _build_initial_messages(self, question: dict[str, Any], subject: str, topic: str) -> list[dict[str, str]]:

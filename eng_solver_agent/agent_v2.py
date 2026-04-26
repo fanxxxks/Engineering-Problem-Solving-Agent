@@ -7,6 +7,7 @@ import os
 from typing import Any
 
 from eng_solver_agent.agent import EngineeringSolverAgent
+from eng_solver_agent.debug_logger import log_pipeline_stage, section, step
 from eng_solver_agent.llm.kimi_client import KimiClient
 from eng_solver_agent.llm.prompt_builder import build_analyze_messages, build_draft_messages
 from eng_solver_agent.config import Settings
@@ -25,8 +26,12 @@ class EnhancedSolverAgent(EngineeringSolverAgent):
     def solve_one(self, question: dict[str, Any]) -> dict[str, Any]:
         """Enhanced solving with LLM-first approach."""
         normalized = self._normalize_input(question)
-        
+        qid = normalized.get("question_id", "?")
+        section(f"[开始] [EnhancedAgent] 开始解题: {qid}")
+        step("EnhancedAgent", f"题目: {str(normalized.get('question', ''))[:120]}...")
+
         # Step 1: Use LLM to analyze and solve directly first
+        log_pipeline_stage("尝试 LLM 直接求解")
         try:
             direct_result = self._llm_direct_solve(normalized)
             if direct_result and direct_result.get("answer"):
@@ -37,10 +42,11 @@ class EnhancedSolverAgent(EngineeringSolverAgent):
                 )
                 validate_final_answer(result)
                 return result
-        except Exception:
-            pass
-        
+        except Exception as exc:
+            step("EnhancedAgent", f"[失败] LLM 直接求解失败: {exc}", color="red")
+
         # Step 2: Fall back to original two-stage approach
+        step("EnhancedAgent", "回退到传统两阶段模式", color="yellow")
         return super().solve_one(question)
     
     def _llm_direct_solve(self, question: dict[str, Any]) -> dict[str, str] | None:

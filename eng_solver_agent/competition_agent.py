@@ -21,6 +21,7 @@ from typing import Any
 
 from eng_solver_agent.adapter import QuestionAdapter
 from eng_solver_agent.config import Settings
+from eng_solver_agent.debug_logger import log_pipeline_stage, section, step, start_file_logging
 from eng_solver_agent.formatter import format_submission_item
 from eng_solver_agent.llm.kimi_client import KimiClient
 from eng_solver_agent.llm.prompt_builder import build_analyze_messages, build_draft_messages
@@ -73,6 +74,9 @@ class CompetitionAgent:
     def solve_one(self, question: dict[str, Any]) -> dict[str, Any]:
         normalized = self._normalize_input(question)
         route_decision = self.router.route_with_confidence(normalized)
+        qid = normalized.get("question_id", "?")
+        section(f"[开始] [CompetitionAgent] 开始解题: {qid}  |  学科: {route_decision.subject}")
+        step("CompetitionAgent", f"题目: {str(normalized.get('question', ''))[:120]}...")
 
         if self.use_react and self._should_try_remote_client():
             return self._solve_with_react(normalized, route_decision.subject)
@@ -111,6 +115,7 @@ class CompetitionAgent:
 
     def _solve_with_react(self, question: dict[str, Any], subject: str) -> dict[str, Any]:
         """Solve using ReAct reasoning engine for maximum reasoning_process score."""
+        log_pipeline_stage("ReAct 推理模式", f"subject={subject}")
         try:
             engine = ReActEngine(self.kimi_client, self.tools)
             topic = self._infer_topic(subject, str(question.get("question", "")))
@@ -125,8 +130,8 @@ class CompetitionAgent:
                 )
                 self.verifier(result)
                 return result
-        except Exception:
-            pass
+        except Exception as exc:
+            log_pipeline_stage("ReAct 失败，回退到传统模式", str(exc))
 
         # Fallback to legacy if ReAct fails
         return self._solve_legacy(question, subject)
@@ -136,8 +141,11 @@ class CompetitionAgent:
     # ------------------------------------------------------------------
 
     def _solve_legacy(self, question: dict[str, Any], subject: str) -> dict[str, Any]:
+        log_pipeline_stage("传统模式: 分析阶段")
         analysis = self._analyze_question(question, subject)
+        log_pipeline_stage("传统模式: 工具计算阶段")
         tool_result = self._run_tool(question, analysis)
+        log_pipeline_stage("传统模式: 生成答案阶段")
         draft = self._draft_answer(question, analysis, tool_result)
         result = format_submission_item(
             question_id=question["question_id"],
@@ -158,6 +166,7 @@ class CompetitionAgent:
         return normalized
 
     def _analyze_question(self, question: dict[str, Any], subject_hint: str) -> AnalyzeResult:
+        step("CompetitionAgent", "🤔 调用大模型分析题目...", color="magenta")
         if self._should_try_remote_client():
             try:
                 response = self.kimi_client.chat_json(
@@ -169,15 +178,19 @@ class CompetitionAgent:
                         "target_form", "possible_traps",
                     ),
                 )
-                return AnalyzeResult.model_validate(response)
-            except Exception:
-                pass
+                result = AnalyzeResult.model_validate(response)
+                step("CompetitionAgent", f"[成功] 分析完成: subject={result.subject}, topic={result.topic}", color="green")
+                return result
+            except Exception as exc:
+                step("CompetitionAgent", f"[失败] 大模型分析失败: {exc}", color="red")
         return self._fallback_analyze(question, subject_hint)
 
     def _run_tool(self, question: dict[str, Any], analysis: AnalyzeResult) -> dict[str, Any]:
+        step("CompetitionAgent", f"[工具] 调用工具 (subject={analysis.subject})...", color="yellow")
         return self.dispatcher.dispatch(question, analysis)
 
     def _draft_answer(self, question: dict[str, Any], analysis: AnalyzeResult, tool_result: dict[str, Any]) -> DraftResult:
+        step("CompetitionAgent", "[生成] 调用大模型生成最终答案...", color="magenta")
         if self._should_try_remote_client():
             try:
                 response = self.kimi_client.chat_json(
@@ -187,11 +200,13 @@ class CompetitionAgent:
                 )
                 draft = DraftResult.model_validate(response)
                 if str(draft.reasoning_process).strip() and str(draft.answer).strip():
+                    step("CompetitionAgent", f"[成功] 答案生成完成 (answer: {str(draft.answer)[:100]})", color="green")
                     return draft
-            except Exception:
-                pass
+            except Exception as exc:
+                step("CompetitionAgent", f"[失败] 大模型生成答案失败: {exc}", color="red")
 
         # Fallback: build a structured reasoning string
+        step("CompetitionAgent", "[失败] 使用回退方案生成答案", color="yellow")
         return self._build_fallback_draft(question, analysis, tool_result)
 
     def _build_fallback_draft(self, question: dict[str, Any], analysis: AnalyzeResult, tool_result: dict[str, Any]) -> DraftResult:

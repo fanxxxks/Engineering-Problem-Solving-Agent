@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from eng_solver_agent.agent_v2 import EnhancedSolverAgent
+from eng_solver_agent.debug_logger import log_pipeline_stage, section, step
 from eng_solver_agent.llm.kimi_client import KimiClient
 from eng_solver_agent.formatter import format_submission_item
 
@@ -52,12 +53,14 @@ class WorkerAgent:
         """Solve a single question."""
         question_id = question.get("question_id", f"unknown_{self.worker_id}")
         start_time = time.time()
-        
+        step("WorkerAgent", f"Worker#{self.worker_id} 开始解题: {question_id}", color="cyan")
+
         try:
             # Try LLM direct solve first
             result = self.solver.solve_one(question)
             elapsed = time.time() - start_time
-            
+
+            step("WorkerAgent", f"Worker#{self.worker_id} 完成: {question_id} ({elapsed:.1f}s)", color="green")
             return WorkerResult(
                 question_id=question_id,
                 success=True,
@@ -66,9 +69,10 @@ class WorkerAgent:
                 elapsed_time=elapsed,
                 confidence=self._estimate_confidence(result)
             )
-            
+
         except Exception as e:
             elapsed = time.time() - start_time
+            step("WorkerAgent", f"Worker#{self.worker_id} 失败: {question_id} - {e}", color="red")
             return WorkerResult(
                 question_id=question_id,
                 success=False,
@@ -128,10 +132,11 @@ class CheckerAgent:
     
     def _llm_check(self, question: dict[str, Any], worker_result: WorkerResult) -> CheckResult:
         """Use LLM to check answer quality."""
+        step("CheckerAgent", f"[检查] 检查答案: {worker_result.question_id}", color="magenta")
         question_text = question.get("question", "")
         answer = worker_result.answer
         reasoning = worker_result.reasoning
-        
+
         messages = [
             {
                 "role": "system",
@@ -161,7 +166,8 @@ Respond in strict JSON:
             messages,
             required_keys=["is_valid", "confidence"]
         )
-        
+
+        step("CheckerAgent", f"[成功] 检查结果: valid={response.get('is_valid')}, confidence={response.get('confidence'):.2f}", color="green")
         return CheckResult(
             question_id=worker_result.question_id,
             is_valid=response.get("is_valid", False),
