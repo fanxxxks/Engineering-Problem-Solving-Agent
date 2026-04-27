@@ -26,7 +26,7 @@ class ParsedQuestion(BaseModel):
 
 
 class RetrievalContext(BaseModel):
-    question_id: Any
+    question_id: str
     query: str
     documents: list = Field(default_factory=list)
     metadata: dict = Field(default_factory=dict)
@@ -40,7 +40,7 @@ class ToolResult(BaseModel):
 
 
 class FinalAnswer(BaseModel):
-    question_id: Any
+    question_id: str
     reasoning_process: str
     answer: str
     subject: Optional[str] = None

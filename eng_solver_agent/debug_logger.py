@@ -98,10 +98,14 @@ def stop_file_logging() -> None:
     _file_logging_started = False
 
 
-# ── Auto-start file logging on import ──────────────────────────────────────
+_start_file_logging = start_file_logging
 
-start_file_logging("agent_run")
-
+def ensure_file_logging(name: str = "agent_run") -> Path:
+    """Ensure file logging is started (idempotent)."""
+    global _log_file, _file_logging_started
+    if _file_logging_started:
+        return _log_file
+    return start_file_logging(name)
 
 def set_verbose(level: int = 1) -> None:
     global _verbose_level

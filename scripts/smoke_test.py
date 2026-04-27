@@ -9,11 +9,11 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from eng_solver_agent.agent import EngineeringSolverAgent
+from eng_solver_agent.unified_agent import UnifiedAgent
 
 
 def main() -> None:
-    agent = EngineeringSolverAgent()
+    agent = UnifiedAgent()
     single = agent.solve_one(
         {
             "question_id": "demo-1",

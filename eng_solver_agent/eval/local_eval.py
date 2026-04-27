@@ -46,8 +46,8 @@ def run_local_eval(
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     questions = load_dev_set(dev_path)
     if agent is None:
-        from eng_solver_agent.agent import EngineeringSolverAgent
-        agent = EngineeringSolverAgent()
+        from eng_solver_agent.unified_agent import UnifiedAgent
+        agent = UnifiedAgent()
     solver = agent
     predictions: list[dict[str, Any]] = []
     for question in questions:

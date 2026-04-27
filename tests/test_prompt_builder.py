@@ -23,7 +23,7 @@ def test_analyze_prompt_contains_required_fields_for_each_subject() -> None:
         )
         for field in ANALYZE_REQUIRED_FIELDS:
             assert field in prompt
-        assert "strict JSON only" in prompt
+        assert "严格JSON格式" in prompt
         assert focus_word in prompt
 
 
@@ -37,10 +37,10 @@ def test_draft_prompt_contains_required_fields_and_style_rules() -> None:
 
     for field in DRAFT_REQUIRED_FIELDS:
         assert field in prompt
-    assert "knowns and unknowns" in prompt
-    assert "formula, theorem" in prompt
-    assert "substitution or derivation" in prompt
-    assert "result and any necessary units" in prompt
+    assert "已知条件" in prompt
+    assert "公式" in prompt
+    assert "推导" in prompt
+    assert "单位" in prompt
 
 
 def test_message_builders_wrap_prompt_text() -> None:
@@ -54,6 +54,6 @@ def test_message_builders_wrap_prompt_text() -> None:
 
     assert analyze_messages[0]["role"] == "system"
     assert analyze_messages[1]["role"] == "user"
-    assert "strict JSON only" in analyze_messages[1]["content"]
+    assert "严格JSON格式" in analyze_messages[1]["content"]
     assert draft_messages[1]["role"] == "user"
     assert "reasoning_process" in draft_messages[1]["content"]

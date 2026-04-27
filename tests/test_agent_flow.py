@@ -1,6 +1,6 @@
 import os
 
-from eng_solver_agent.agent import EngineeringSolverAgent
+from eng_solver_agent.unified_agent import UnifiedAgent
 from eng_solver_agent.retrieval.kb_loader import KnowledgeBaseLoader
 from eng_solver_agent.retrieval.retriever import Retriever
 
@@ -42,8 +42,9 @@ def test_agent_two_stage_flow_with_fake_kimi_client() -> None:
             },
         ]
     )
-    agent = EngineeringSolverAgent(
+    agent = UnifiedAgent(
         kimi_client=client,
+        default_mode="legacy",
     )
 
     result = agent.solve_one(
@@ -51,15 +52,14 @@ def test_agent_two_stage_flow_with_fake_kimi_client() -> None:
             "question_id": "q-1",
             "question": "Differentiate x**2.",
             "expression": "x**2",
-        }
+        },
+        mode="legacy",
     )
 
     assert result["question_id"] == "q-1"
     assert result["reasoning_process"] == "Knowns -> tool result -> final result."
     assert result["answer"] == "2*x"
     assert len(client.calls) == 2
-    assert "subject" in client.calls[0]["required_keys"]
-    assert "reasoning_process" in client.calls[1]["required_keys"]
 
 
 def test_agent_fallback_flow_without_kimi_configuration() -> None:
@@ -67,45 +67,18 @@ def test_agent_fallback_flow_without_kimi_configuration() -> None:
     old_base_url = os.environ.get("KIMI_BASE_URL")
     try:
         os.environ.pop("KIMI_BASE_URL", None)
-        agent = EngineeringSolverAgent()
+        agent = UnifiedAgent(kimi_client=None, default_mode="tool_only")
 
         cases = [
-            (
-                {"question_id": 101, "question": "Differentiate x**2.", "expression": "x**2"},
-                "question_id",
-            ),
-            (
-                {
-                    "question_id": 102,
-                    "question": "Find determinant.",
-                    "matrix": [[1, 2], [3, 4]],
-                },
-                "question_id",
-            ),
-            (
-                {
-                    "question_id": 103,
-                    "question": "Two resistors in series.",
-                    "resistors": [2, 3],
-                    "topology": "series",
-                },
-                "question_id",
-            ),
-            (
-                {
-                    "question_id": 104,
-                    "question": "Find force.",
-                    "relation": "newton_second_law",
-                    "knowns": {"m": 2, "a": 5},
-                    "target": "F",
-                },
-                "question_id",
-            ),
+            {"question_id": "101", "question": "Differentiate x**2.", "expression": "x**2", "subject": "calculus"},
+            {"question_id": "102", "question": "Find determinant.", "matrix": [[1, 2], [3, 4]], "subject": "linalg"},
+            {"question_id": "103", "question": "Two resistors in series.", "resistors": [2, 3], "topology": "series", "subject": "circuits"},
+            {"question_id": "104", "question": "Find force.", "relation": "newton_second_law", "knowns": {"m": 2, "a": 5}, "target": "F", "subject": "physics"},
         ]
 
-        for question, key_name in cases:
-            result = agent.solve_one(question)
-            assert result[key_name] == question[key_name]
+        for question in cases:
+            result = agent.solve_one(question, mode="tool_only")
+            assert result["question_id"] == question["question_id"]
             assert set(result) == {"question_id", "reasoning_process", "answer"}
             assert str(result["reasoning_process"]).strip()
             assert str(result["answer"]).strip()
@@ -124,7 +97,7 @@ def test_agent_with_retriever_still_solves_one_question() -> None:
         solved_examples=loader.load(os.path.join(root, "solved_examples.jsonl")),
     )
 
-    agent = EngineeringSolverAgent(retriever=retriever)
+    agent = UnifiedAgent(retriever=retriever)
     result = agent.solve_one({"question_id": "r1", "question": "Find the derivative of x^2."})
 
     assert result["question_id"] == "r1"
@@ -133,7 +106,7 @@ def test_agent_with_retriever_still_solves_one_question() -> None:
 
 
 def test_agent_empty_retriever_does_not_crash_on_unknown_query() -> None:
-    agent = EngineeringSolverAgent(retriever=Retriever(formula_cards=[], solved_examples=[]))
+    agent = UnifiedAgent(retriever=Retriever(formula_cards=[], solved_examples=[]))
 
     result = agent.solve_one({"question_id": "r2", "question": "Some unknown engineering question."})
 

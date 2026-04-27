@@ -13,7 +13,7 @@ from eng_solver_agent.schemas import RetrievalResult
 
 
 # Pre-compiled regex for tokenization
-_TOKEN_RE = re.compile(r"[a-z0-9]+")
+_TOKEN_RE = re.compile(r"[a-z0-9\u4e00-\u9fff]+")
 
 
 class Retriever:

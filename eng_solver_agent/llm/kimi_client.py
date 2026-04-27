@@ -44,8 +44,30 @@ RESPONSE_CONTENT_PATHS = (
     ("choices", 0, "message", "content"),
     ("choices", 0, "text"),
     ("output_text",),
-    ("content",),
+    ("content",)
 )
+
+
+class _RedirectHandler(urllib_request.HTTPRedirectHandler):
+    """Handle HTTP 307/308 redirects for POST requests."""
+    def http_error_307(self, req, fp, code, msg, headers):
+        return self._do_redirect(req, fp, code, msg, headers)
+    def http_error_308(self, req, fp, code, msg, headers):
+        return self._do_redirect(req, fp, code, msg, headers)
+    def _do_redirect(self, req, fp, code, msg, headers):
+        new_url = headers.get("Location") or headers.get("location")
+        if new_url is None:
+            raise urllib_error.HTTPError(req.full_url, code, msg, headers, fp)
+        new_request = urllib_request.Request(
+            new_url, data=req.data, headers=dict(req.headers), method=req.get_method()
+        )
+        return self.parent.open(new_request, timeout=getattr(req, 'timeout', None))
+
+
+def build_opener():
+    """Build a URL opener that handles 307/308 redirects."""
+    handler = _RedirectHandler()
+    return urllib_request.build_opener(handler).open
 
 
 @dataclass(frozen=True)
@@ -82,7 +104,7 @@ class KimiClient:
             max_retry=_to_int(max_retry if max_retry is not None else os.getenv("MAX_RETRY", "1")),
             temperature=_to_float(temperature if temperature is not None else os.getenv("KIMI_TEMPERATURE", "1.0")),
         )
-        self._opener = opener or urllib_request.urlopen
+        self._opener = opener or build_opener()
 
     def chat(self, messages: list[dict[str, Any]], temperature: float | None = None) -> str:
         temp = temperature if temperature is not None else self.config.temperature
@@ -172,7 +194,7 @@ class KimiClient:
                 log_llm_error(exc, attempt + 1, self.config.max_retry + 1)
                 if attempt >= self.config.max_retry:
                     raise
-                time.sleep(0)
+                time.sleep(0.5 * (2 ** attempt))
         if last_error is not None:
             raise last_error
         raise RuntimeError("request failed without an explicit error")

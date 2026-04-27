@@ -129,29 +129,78 @@ class ReActEngine:
             {"role": "user", "content": user_prompt},
         ]
 
-    def _describe_tools(self) -> str:
-        """Return a human-readable description of all available tools.
+    _METHOD_SIGNATURES: dict[str, str] = {
+        "diff": 'diff(expression, var="x", order=1)',
+        "integrate": 'integrate(expression, var="x", lower=None, upper=None)',
+        "limit": 'limit(expression, var="x", point=0, direction="both")',
+        "critical_points": 'critical_points(expression, var="x")',
+        "taylor_series": 'taylor_series(expression, var="x", center=0, order=5)',
+        "determinant": 'determinant(matrix=[[a,b],[c,d]])',
+        "matrix_inverse": 'matrix_inverse(matrix=[[a,b],[c,d]])',
+        "rank": 'rank(matrix=[[a,b],[c,d]])',
+        "eigenvalues": 'eigenvalues(matrix=[[a,b],[c,d]])',
+        "eigenvectors": 'eigenvectors(matrix=[[a,b],[c,d]])',
+        "solve_linear_system": 'solve_linear_system(matrix=[[a,b],[c,d]], rhs=[e,f])',
+        "matrix_power": 'matrix_power(matrix=[[a,b],[c,d]], exponent=N)',
+        "equivalent_resistance": 'equivalent_resistance(resistors=[R1,R2,...], topology="series")',
+        "node_analysis": 'node_analysis(netlist={...})',
+        "meshh_analysis": 'mesh_analysis(resistance_matrix=[[...]], source_vector=[...])',
+        "solve_relation": 'solve_relation(relation="uniform_acceleration", knowns={"v0":2,...}, target="v")',
+        "newton_second_law": 'newton_second_law(knowns={"m":2,"a":5}, target="F")',
+        "momentum": 'momentum(knowns={"m":3,"v":4}, target="p")',
+        "work_energy": 'work_energy(knowns={"m":2,"v0":1,"v":5}, target="W")',
+        "execute_code": 'execute_code(code="python code using sympy/math/np")',
+        "simplify": 'simplify(expression)',
+    }
 
-        Each tool is described as:
-        - tool_name: tool docstring / purpose
-          Methods: method1, method2, ...
-        """
+    _PARAM_ALIASES: dict[str, dict[str, str]] = {
+        "diff": {"variable": "var", "function": "expression", "expr": "expression"},
+        "integrate": {"variable": "var", "function": "expression", "expr": "expression", "lower_limit": "lower", "upper_limit": "upper", "from": "lower", "to": "upper"},
+        "limit": {"variable": "var", "function": "expression", "expr": "expression"},
+        "critical_points": {"variable": "var", "expr": "expression"},
+        "taylor_series": {"variable": "var", "expr": "expression"},
+        "determinant": {},
+        "matrix_inverse": {},
+        "rank": {},
+        "eigenvalues": {},
+        "eigenvectors": {},
+        "solve_linear_system": {"b": "rhs", "vector": "rhs", "right_hand_side": "rhs"},
+        "matrix_power": {"power": "exponent", "n": "exponent"},
+        "equivalent_resistance": {"connection": "topology", "connection_type": "topology"},
+        "newton_second_law": {"mass": "m", "acceleration": "a", "force": "F"},
+        "momentum": {"mass": "m", "velocity": "v"},
+        "work_energy": {"mass": "m", "v_initial": "v0", "v_final": "v"},
+    }
+
+    @staticmethod
+    def _normalize_action_input(method_name: str, action_input: dict[str, Any]) -> dict[str, Any]:
+        aliases = ReActEngine._PARAM_ALIASES.get(method_name, {})
+        if not aliases:
+            return dict(action_input)
+        result = dict(action_input)
+        for bad_name, good_name in aliases.items():
+            if bad_name in result and good_name not in result:
+                result[good_name] = result.pop(bad_name)
+        return result
+
+    def _describe_tools(self) -> str:
+        """Return a human-readable description of all available tools with parameter signatures."""
         lines: list[str] = []
         for name, tool in self.tools.items():
             doc = (tool.__doc__ or "").split("\n")[0].strip()
             methods = [m for m in dir(tool) if not m.startswith("_") and callable(getattr(tool, m, None))]
             lines.append(f"- {name}: {doc}")
             lines.append(f"  可用方法: {', '.join(methods)}")
-        # Append a lookup table for commonly used methods
         lines.append("")
-        lines.append("常用方法速查表（可直接作为'行动'使用）：")
+        lines.append("常用方法及参数签名（可直接作为'行动'使用）：")
         seen: set[str] = set()
         for method, (tool_name, _) in self._method_registry.items():
             if method in ("solve", "compute"):
                 continue
             if method not in seen:
                 seen.add(method)
-                lines.append(f"  {method} -> {tool_name}")
+                sig = ReActEngine._METHOD_SIGNATURES.get(method, f"{method}(...)")
+                lines.append(f"  {sig} -> {tool_name}")
         return "\n".join(lines)
 
     def _reason_step(self, messages: list[dict[str, str]], step_num: int) -> ReasoningStep:
@@ -174,9 +223,9 @@ class ReActEngine:
         except Exception as exc:
             return ReasoningStep(
                 step_number=step_num,
-                thought=f"推理出错: {exc}",
-                action="最终答案",
-                is_final=True,
+                thought=f"推理步骤出错: {exc}",
+                action=None,
+                is_final=False,
             )
 
     def _parse_step_response(self, response: str, step_num: int) -> ReasoningStep:
@@ -222,14 +271,18 @@ class ReActEngine:
         """Execute a tool action and return the observation.
 
         Supports multiple calling conventions:
-        1. action="tool_name.method_name" → e.g. "physics.newton_second_law"
+        1. action="tool_name.method_name"
         2. action="method_name" → lookup in _method_registry
-        3. action="tool_name" → use method from action_input["method"] (default "solve")
+        3. action="tool_name" → use method from action_input["method"]
         4. action="compute" or "solve" → route to NumericalComputationTool
         """
         action = action.strip()
 
-        # Convention 1: "tool.method" syntax
+        def _call_method(method, m_name: str, inputs: dict[str, Any]) -> str:
+            normalized = self._normalize_action_input(m_name, inputs)
+            return str(method(**normalized))
+
+        # 1: "tool.method" syntax
         if "." in action:
             parts = action.split(".", 1)
             tool_name, method_name = parts[0].strip(), parts[1].strip()
@@ -240,12 +293,11 @@ class ReActEngine:
             if method is None:
                 return f"错误: 工具 '{tool_name}' 没有方法 '{method_name}'"
             try:
-                result = method(**action_input)
-                return str(result)
+                return _call_method(method, method_name, action_input)
             except Exception as exc:
                 return f"错误: {type(exc).__name__}: {exc}"
 
-        # Convention 2: action is a known tool name
+        # 2: action is a known tool name
         tool = self.tools.get(action)
         if tool is not None:
             input_copy = dict(action_input)
@@ -254,30 +306,27 @@ class ReActEngine:
             if method is None:
                 return f"错误: 工具 '{action}' 没有方法 '{method_name}'"
             try:
-                result = method(**input_copy)
-                return str(result)
+                return _call_method(method, method_name, input_copy)
             except Exception as exc:
                 return f"错误: {type(exc).__name__}: {exc}"
 
-        # Convention 3: action is a method name → find the tool that has it
+        # 3: action is a method name → find the tool that has it
         if action in self._method_registry:
             tool_name, tool = self._method_registry[action]
             method = getattr(tool, action, None)
             if method is not None:
                 try:
-                    result = method(**action_input)
-                    return str(result)
+                    return _call_method(method, action, action_input)
                 except Exception as exc:
                     return f"错误: {type(exc).__name__}: {exc}"
 
-        # Convention 4: special shortcuts for compute / solve
+        # 4: special shortcuts for compute / solve
         if action in ("compute", "solve"):
             for name, tool in self.tools.items():
                 if hasattr(tool, action):
                     method = getattr(tool, action)
                     try:
-                        result = method(**action_input)
-                        return str(result)
+                        return _call_method(method, action, action_input)
                     except Exception as exc:
                         return f"错误: {type(exc).__name__}: {exc}"
 

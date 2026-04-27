@@ -1129,7 +1129,6 @@ class _ExecEngine:
             "math": __import__("math"),
             "np": __import__("numpy"),
             "sympy": __import__("sympy"),
-            # Frequently used sympy symbols exposed for convenience
             "diff": __import__("sympy").diff,
             "integrate": __import__("sympy").integrate,
             "limit": __import__("sympy").limit,
@@ -1141,13 +1140,32 @@ class _ExecEngine:
             "symbols": __import__("sympy").symbols,
         }
 
+        import threading
+
         old_stdout = __import__("sys").stdout
         __import__("sys").stdout = redirected = StringIO()
-        try:
-            exec(code, safe_globals)
+        result_container = {"output": None, "error": None, "done": False}
+
+        def _exec_target():
+            try:
+                exec(code, safe_globals)
+                __import__("sys").stdout = old_stdout
+                output = redirected.getvalue().strip()
+                result_container["output"] = output if output else "代码执行成功，但没有输出。请在代码中使用 print() 输出结果。"
+            except Exception as exc:
+                __import__("sys").stdout = old_stdout
+                result_container["error"] = f"代码执行出错: {type(exc).__name__}: {exc}"
+            finally:
+                result_container["done"] = True
+
+        thread = threading.Thread(target=_exec_target, daemon=True)
+        thread.start()
+        thread.join(timeout=5)
+
+        if not result_container["done"]:
             __import__("sys").stdout = old_stdout
-            output = redirected.getvalue().strip()
-            return output if output else "代码执行成功，但没有输出。请在代码中使用 print() 输出结果。"
-        except Exception as exc:
-            __import__("sys").stdout = old_stdout
-            return f"代码执行出错: {type(exc).__name__}: {exc}"
+            return "代码执行超时 (5秒限制)"
+
+        if result_container["error"] is not None:
+            return result_container["error"]
+        return result_container["output"]

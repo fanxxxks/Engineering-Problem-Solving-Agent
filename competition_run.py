@@ -16,8 +16,27 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from fix_json import load_json_robust
 from eng_solver_agent.unified_agent import UnifiedAgent
+
+
+def load_json_robust(path: str) -> list[dict[str, Any]]:
+    """Load JSON with robust error handling."""
+    candidate = Path(path)
+    if not candidate.exists():
+        return []
+    try:
+        with open(candidate, "r", encoding="utf-8") as f:
+            data = json.loads(f.read())
+    except Exception:
+        return []
+    if isinstance(data, list):
+        return data
+    if isinstance(data, dict):
+        if "questions" in data and isinstance(data["questions"], list):
+            return data["questions"]
+        if "items" in data and isinstance(data["items"], list):
+            return data["items"]
+    return []
 
 
 SUBJECT_FILES = {
@@ -78,8 +97,8 @@ def grade_answer(pred: str, gold: str) -> tuple[bool, float, str]:
     if not pred_norm or not gold_norm:
         return False, 0.0, "empty"
 
-    # 1. Direct substring match (gold in pred or vice versa)
-    if gold_norm in pred_norm or pred_norm in gold_norm:
+    # 1. Direct substring match (gold in pred or vice versa) - require min length
+    if len(gold_norm) >= 3 and (gold_norm in pred_norm or pred_norm in gold_norm):
         return True, 1.0, "direct_match"
 
     # 2. Check if key formula from gold appears in pred

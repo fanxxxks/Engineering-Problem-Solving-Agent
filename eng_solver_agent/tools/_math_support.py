@@ -24,6 +24,16 @@ except Exception:
         """Raised when an operation needs sympy or a broader solver."""
 
 
+_GREEK_SYMBOLS = frozenset({
+    "alpha", "beta", "gamma", "delta", "epsilon", "zeta", "eta", "theta",
+    "iota", "kappa", "lambda", "mu", "nu", "xi", "omicron", "pi", "rho",
+    "sigma", "tau", "upsilon", "phi", "chi", "psi", "omega",
+    "Alpha", "Beta", "Gamma", "Delta", "Epsilon", "Zeta", "Eta", "Theta",
+    "Iota", "Kappa", "Lambda", "Mu", "Nu", "Xi", "Omicron", "Pi", "Rho",
+    "Sigma", "Tau", "Upsilon", "Phi", "Chi", "Psi", "Omega",
+})
+
+
 def load_sympy() -> Any | None:
     """Return sympy if installed, otherwise None."""
 
@@ -189,8 +199,8 @@ def _poly_visit(node: ast.AST, var: str) -> dict[int, Fraction]:
             return poly_from_constant(node.value)
         raise ToolUnsupportedError(f"unsupported constant type: {type(node.value)!r}")
     if isinstance(node, ast.Name):
-        if node.id != var:
-            raise ToolUnsupportedError(f"unknown symbol '{node.id}' without sympy")
+        if node.id != var and node.id not in _GREEK_SYMBOLS:
+            raise ToolUnsupportedError(f"unsupported symbol '{node.id}' without sympy")
         return {1: _ONE}
     if isinstance(node, ast.BinOp):
         left = _poly_visit(node.left, var)

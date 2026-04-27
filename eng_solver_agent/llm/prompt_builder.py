@@ -66,24 +66,24 @@ def build_analyze_prompt(
     }
     return "\n".join(
         [
-            f"You are analyzing a {template['label']} question.",
-            "Output strict JSON only. No markdown. No prose. No code fences.",
-            "Required JSON fields:",
+            f"你正在分析一道{template['label']}题目。",
+            "请输出严格JSON格式。不要使用markdown。不要添加额外文本。不要使用代码块标记。",
+            "必须包含的JSON字段:",
             _format_required_fields(ANALYZE_REQUIRED_FIELDS),
-            "Field rules:",
-            "- subject: one of physics, circuits, linalg, calculus.",
-            "- topic: short topic name.",
-            "- knowns and unknowns: arrays of short strings.",
-            "- equations_or_theorems: arrays of formulas, laws, or theorems to use.",
-            "- should_use_tool: boolean.",
-            "- target_form: describe the expected solved form.",
-            "- possible_traps: arrays of short strings.",
-            "Subject focus:",
+            "字段规则:",
+            "- subject: physics, circuits, linalg, calculus 之一。",
+            "- topic: 简短的主题名称。",
+            "- knowns 和 unknowns: 短字符串数组。",
+            "- equations_or_theorems: 需要使用的公式、定律或定理数组。",
+            "- should_use_tool: boolean。",
+            "- target_form: 描述期望的求解形式。",
+            "- possible_traps: 短字符串数组。",
+            "学科重点:",
             template["focus"],
-            "Tool hint:",
+            "工具提示:",
             template["tool_hint"],
             *_retrieval_lines(retrieval_context),
-            "Question JSON:",
+            "题目JSON:",
             json.dumps(payload, ensure_ascii=False),
         ]
     )
@@ -107,18 +107,18 @@ def build_draft_prompt(
     }
     return "\n".join(
         [
-            f"You are drafting the final answer for a {template['label']} question.",
-            "Output strict JSON only. No markdown. No prose. No code fences.",
-            "Required JSON fields:",
+            f"你正在为一道{template['label']}题目撰写最终答案。",
+            "请输出严格JSON格式。不要使用markdown。不要添加额外文本。不要使用代码块标记。",
+            "必须包含的JSON字段:",
             _format_required_fields(DRAFT_REQUIRED_FIELDS),
-            "Style rules:",
-            "- Start with knowns and unknowns.",
-            "- State the formula, theorem, or governing relation used.",
-            "- Show substitution or derivation steps.",
-            "- End with the result and any necessary units or conditions.",
+            "撰写规则:",
+            "- 从已知条件和未知量开始。",
+            "- 说明使用的公式、定理或控制方程。",
+            "- 展示代入和推导步骤。",
+            "- 以结果和任何必要的单位或条件结束。",
             template["draft_hint"],
             *_retrieval_lines(retrieval_context),
-            "Question and analysis JSON:",
+            "题目与分析结果JSON:",
             json.dumps(payload, ensure_ascii=False),
         ]
     )
@@ -130,7 +130,7 @@ def build_analyze_messages(
     retrieval_context: Any | None = None,
 ) -> list[dict[str, str]]:
     return [
-        {"role": "system", "content": "Return strict JSON only."},
+        {"role": "system", "content": "请返回严格JSON格式。"},
         {"role": "user", "content": build_analyze_prompt(question, subject=subject, retrieval_context=retrieval_context)},
     ]
 
@@ -143,7 +143,7 @@ def build_draft_messages(
     retrieval_context: Any | None = None,
 ) -> list[dict[str, str]]:
     return [
-        {"role": "system", "content": "Return strict JSON only."},
+        {"role": "system", "content": "请返回严格JSON格式。"},
         {
             "role": "user",
             "content": build_draft_prompt(

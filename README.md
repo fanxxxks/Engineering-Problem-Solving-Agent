@@ -283,39 +283,19 @@ results = asyncio.run(agent.async_solve(questions, max_concurrent=5, mode="auto"
 
 ---
 
-#### `agent.py` — EngineeringSolverAgent（原始智能体）
+#### `agent.py` — 已删除
 
-经典 **"分析 → 工具 → 起草"** 三阶段流水线。
-
-**流水线阶段**：
-1. **`_normalize_input()`**：通过 `QuestionAdapter` 标准化输入字段
-2. **`_analyze_question()`**：调用 LLM 分析题目，提取结构化信息
-3. **`_run_tool()`**：根据学科调用对应工具进行精确计算
-4. **`_draft_answer()`**：LLM 结合分析结果和工具输出，生成中文推理过程
-
-**文本提取能力**：
-- **表达式提取**："求 x^2 的导数" → `x^2`
-- **矩阵提取**：`[[1,2],[3,4]]`、`|1 2; 3 4|`、`[1 2; 3 4]`
-- **电阻提取**："2Ω"、"3 欧姆" → `[2.0]`
-- **物理量提取**：`2kg` → `{"m": 2.0}`
+经典"分析 → 工具 → 起草"三阶段流水线，已被 [UnifiedAgent](#unified_agentpy--unifiedagent推荐入口) 完全替代。删除原因：与 UnifiedAgent 功能完全重复且 UnifiedAgent 提供更多求解模式。
 
 ---
+#### `agent_v2.py` — 已删除
 
-#### `agent_v2.py` — EnhancedSolverAgent（增强版）
-
-采用 **LLM 优先** 策略：先尝试让 LLM 直接给出带推理过程的 JSON 答案，失败后再回退到传统的分析-工具-草稿两阶段流水线。
-
-**核心方法**：
-- `solve_one(question)`：先走 LLM 直接求解，再走父类传统流程
-- `_llm_direct_solve(question)`：构造 few-shot 风格 system prompt，要求 Kimi 返回 `{"reasoning_process": "...", "answer": "..."}`
-
-**适用场景**：显著降低对符号工具可用性的依赖；在工具缺失或 API 异常时，仍能通过纯 LLM 推理输出结构化答案。
+LLM 优先直接求解增强版，已被 [UnifiedAgent](#unified_agentpy--unifiedagent推荐入口) 完全替代。
 
 ---
+#### `multi_agent_system.py` — 已删除
 
-#### `competition_agent.py` — CompetitionAgent（竞赛专用）
-
-针对**竞赛评分规则**优化：优先使用 ReAct 生成详细中文数学推导，即使答案错误也能拿到公式分。
+Worker/Checker/Orchestrator 多智能体并行系统，已被 `UnifiedAgent.async_solve()` 完全替代。
 
 ---
 
@@ -778,10 +758,6 @@ confidence = 0.5
 - 数量级合理性
 - 推理完整性
 
-> **注意**：`multi_agent_system_v2.py` 已废弃，统一使用 `UnifiedAgent.async_solve()` 进行基于 asyncio 的并行求解。
-
----
-
 ### 6.2 `competition_run.py` — 竞赛运行与智能评分
 
 **功能**：按学科分文件加载、并行求解、智能评分，并输出总报告。
@@ -974,4 +950,337 @@ python solve_dataset.py \
 
 | 变量名 | 类型 | 默认值 | 说明 |
 |--------|------|--------|------|
-| `KIMI_API_KEY` | `str` | `
+| `KIMI_API_KEY` | `str` | `""` | Kimi API 密钥 |
+| `KIMI_BASE_URL` | `str` | `"https://api.moonshot.cn"` | API 基础 URL |
+| `KIMI_MODEL` | `str` | `"kimi-k2.5"` | 模型名称 |
+| `KIMI_TEMPERATURE` | `float` | `1.0` | LLM 温度参数 |
+| `REQUEST_TIMEOUT_SECONDS` | `int` | `120` | API 请求超时（秒） |
+| `MAX_RETRY` | `int` | `2` | API 失败重试次数 |
+| `ENG_SOLVER_DEFAULT_ROUTE` | `str` | `"general"` | 默认路由策略 |
+| `ENG_SOLVER_RETRIEVAL_ENABLED` | `bool` | `false` | 是否启用检索增强 |
+| `AGENT_VERBOSE` | `int` | `1` | 日志详细程度 (0/1/2) |
+| `NO_COLOR` | `bool` | `false` | 禁用彩色终端输出 |
+
+---
+
+## 十、项目文件结构
+
+```
+Engineering-Problem-Solving-Agent/
+│
+├── eng_solver_agent/              # 核心智能体包
+│   ├── __init__.py                # 包入口，导出 UnifiedAgent
+│   ├── unified_agent.py           # 统一入口（5种模式 + 并行）⭐ 唯一推荐入口
+│   │
+│   ├── reasoning_engine.py        # ReAct推理引擎
+│   ├── router.py                  # 规则路由
+│   ├── tool_dispatcher.py         # 工具调度中枢
+│   ├── adapter.py                 # 输入适配器
+│   ├── formatter.py               # 输出格式化器
+│   ├── verifier.py                # 提交验证器
+│   ├── schemas.py                 # Pydantic数据模型
+│   ├── config.py                  # 配置管理
+│   ├── constants.py               # 全局常量
+│   ├── exceptions.py              # 统一异常层次
+│   ├── debug_logger.py            # 调试日志系统
+│   │
+│   ├── llm/                       # LLM集成
+│   │   ├── __init__.py
+│   │   ├── kimi_client.py         # Kimi API客户端
+│   │   └── prompt_builder.py      # 两阶段提示词构建器
+│   │
+│   ├── tools/                     # 工具执行层
+│   │   ├── __init__.py
+│   │   ├── numerical_tool.py      # 统一数值计算工具（⭐ 新增）
+│   │   ├── similarity_tool.py     # 相似题目查找工具（⭐ 新增）
+│   │   ├── unit_tool.py           # 单位检查工具
+│   │   └── _math_support.py       # 纯Python数学库
+│   │
+│   ├── retrieval/                 # 知识检索
+│   │   ├── __init__.py
+│   │   ├── retriever.py           # 关键词检索器
+│   │   ├── langchain_retriever.py # LangChain向量检索器（⭐ 新增）
+│   │   ├── kb_loader.py           # 知识库加载器
+│   │   ├── formula_cards.json     # 35张公式卡片
+│   │   └── solved_examples.jsonl  # 12道例题
+│   │
+│   ├── eval/                      # 本地评估
+│   │   └── local_eval.py
+│   │
+│   └── compat/                    # 兼容层
+│       └── pydantic_compat.py
+│
+├── scripts/                       # 脚本工具
+│   ├── mini_pytest.py             # 微型测试运行器
+│   ├── smoke_test.py              # 冒烟测试
+│   └── run_local_eval.py          # 本地评估入口
+│
+├── tests/                         # 测试目录
+│   ├── __init__.py
+│   ├── _helpers.py
+│   ├── test_calculus_tool.py
+│   ├── test_algebra_tool.py
+│   ├── test_circuit_tool.py
+│   ├── test_physics_tool.py
+│   ├── test_langchain_retriever.py（⭐ 新增）
+│   └── test_react_engine.py       （⭐ 新增）
+│
+├── data/                          # 数据集
+│   ├── dev/dev.json               # 开发集（20题）
+│   ├── dev/hard_test.json         # 困难测试集（12题）
+│   └── calculus/teset.json        # 微积分级数专题（10题）
+│
+├── build_kb.py                    # FAISS索引构建脚本（⭐ 新增）
+├── solve_dataset.py               # 批量求解命令行工具
+├── competition_run.py             # 竞赛运行与智能评分
+├── submission.json                # 竞赛提交配置
+│
+├── requirements.txt               # 依赖说明
+├── pytest.bat
+├── .env.example                   # 环境变量模板
+├── .gitignore
+└── README.md                      # 本文件
+```
+
+---
+
+## 十一、错误处理与降级策略
+
+### 11.1 多层降级链
+
+```
+用户题目
+    │
+    ├──→ LangChainRetriever (向量检索)
+    │       └── 失败 → KeywordRetriever (关键词检索)
+    │               └── 失败 → 无检索上下文
+    │
+    ├──→ ReActEngine (多轮推理)
+    │       └── 失败 → LegacyPipeline (两阶段流水线)
+    │               └── 失败 → LLM Direct Solve (直接生成)
+    │                       └── 失败 → Tool Only (纯工具)
+    │                               └── 失败 → Fallback Message
+    │
+    └──→ SymPy (符号计算)
+            └── 未安装 → _math_support.py (纯Python)
+                    └── 不支持 → ToolUnsupportedError
+```
+
+### 11.2 关键降级场景
+
+| 场景 | 降级行为 |
+|------|----------|
+| SymPy 未安装 | 使用 `_math_support.py` 的纯 Python 实现 |
+| Pydantic 未安装 | 使用 `compat/pydantic_compat.py` 兼容层 |
+| LangChain 未安装 | 回退到 `Retriever` 关键词检索 |
+| FAISS 索引不存在 | 回退到关键词检索 |
+| API 密钥无效/缺失 | `tool_only` 模式仍可用，其他模式返回 fallback |
+| API 超时 | 重试 `MAX_RETRY` 次，失败后返回 fallback |
+| 级数证明题 | 工具层显式拒绝，提示使用 LLM 模式 |
+| 工具不支持的操作 | 抛出 `ToolUnsupportedError`，LLM 层接管 |
+
+---
+
+## 十二、性能优化
+
+### 12.1 并发策略
+
+```python
+# asyncio + Semaphore 控制并发
+semaphore = asyncio.Semaphore(max_concurrent)
+
+async def _task(q, idx):
+    async with semaphore:
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, agent.solve_one, q, mode)
+```
+
+- `max_concurrent=5`：平衡速度与 API 限流
+- `run_in_executor`：将同步 Agent 包装为异步任务
+- `asyncio.as_completed`：优先处理完成快的题目
+
+### 12.2 预计算优化
+
+- `Retriever` 初始化时预计算所有卡片的 token 集合
+- `QuestionRouter` 使用预编译正则表达式
+- `ToolDispatcher` 使用预编译的表达式提取模式
+
+### 12.3 零成本模式
+
+`tool_only` 模式完全绕过 LLM，单题求解时间 < 1ms，零 API 调用成本。
+
+---
+
+## 十三、依赖说明
+
+### 核心运行（零外部依赖）
+
+项目主体仅依赖 **Python 标准库**：`asyncio`, `json`, `re`, `os`, `sys`, `math`, `ast`, `fractions`, `urllib` 等。
+
+### 可选增强
+
+| 包 | 用途 | 无此包时的行为 |
+|----|------|---------------|
+| `sympy` | 符号计算 | 使用 `_math_support.py` fallback |
+| `pydantic` | 数据验证 | 使用 `pydantic_compat.py` shim |
+| `python-dotenv` | `.env` 文件加载 | 读取系统环境变量 |
+| `langchain` + `langchain-community` + `langchain-huggingface` | 语义向量检索 | 回退到关键词检索 |
+| `faiss-cpu` | 向量索引存储 | 回退到关键词检索 |
+| `sentence-transformers` | 文本嵌入 | 回退到关键词检索 |
+
+### 环境要求
+
+- **Python 3.10+**
+- 网络连接（仅 LLM 模式和向量索引下载需要）
+
+---
+
+## 十四、故障排查
+
+### 14.1 API 调用失败（400/308）
+
+**原因**：`KIMI_BASE_URL` 包含 `/v1` 路径，与代码中 `endpoint_path` 拼接导致重复。
+
+**解决**：
+```bash
+# 正确
+KIMI_BASE_URL=https://api.moonshot.cn
+
+# 错误（会导致 /v1/v1/chat/completions）
+KIMI_BASE_URL=https://api.moonshot.cn/v1
+```
+
+代码已内置 `_build_url()` 自动去重，但仍建议配置正确的 BASE_URL。
+
+### 14.2 ReAct 工具调用失败
+
+**原因**：LLM 输出格式与工具调用协议不匹配。
+
+**解决**：`reasoning_engine.py` 已支持 4 种调用协议，确保使用最新版本。可通过 `AGENT_VERBOSE=2` 查看详细日志。
+
+### 14.3 SymPy 未安装警告
+
+**现象**：`[sympy] not installed, using pure-python fallback`
+
+**影响**：纯 Python fallback 覆盖多项式、矩阵等基础运算，但无法处理复杂符号积分、非线性方程等。
+
+**解决**：`pip install sympy`
+
+### 14.4 FAISS 索引加载失败
+
+**现象**：`IndexNotFoundError` 或 LangChain 导入错误
+
+**解决**：
+```bash
+# 重新构建索引
+python build_kb.py
+
+# 或禁用检索增强
+ENG_SOLVER_RETRIEVAL_ENABLED=false
+```
+
+### 14.5 输出格式校验失败
+
+**现象**：`ValueError: reasoning_process cannot be empty`
+
+**原因**：LLM 输出未包含推理过程或答案字段。
+
+**解决**：检查 LLM API 是否正常响应；尝试 `llm_only` 模式验证 API 连通性。
+
+---
+
+## 十五、设计决策记录
+
+### 为什么使用 urllib 而不是 requests？
+
+- 避免引入外部 HTTP 库依赖
+- 竞赛环境可能无法 `pip install`
+
+### 为什么将 4 个旧工具合并为统一工具？
+
+- 减少重复代码和维护负担
+- 提供统一的 `compute()` / `solve()` / `execute_code()` 入口
+- 保持全部原始方法兼容性
+
+### 为什么保留 agent.py / agent_v2.py / competition_agent.py？
+
+- 向后兼容
+- 不同场景下直接实例化特定智能体更明确
+
+### 为什么使用 Fraction 而不是 float？
+
+- 矩阵运算中浮点误差会导致错误结果
+- Fraction 保持精确有理数运算，仅在最后一步转 float
+
+### 为什么同时保留关键词检索和向量检索？
+
+- 向量检索依赖外部库，可能无法安装
+- 关键词检索零依赖，作为可靠的降级方案
+
+### 为什么使用 exec() 做代码沙箱？
+
+- 灵活性：支持任意 SymPy/numpy 计算，无需预定义所有方法
+- 可控性：通过白名单限制 `__builtins__`，仅暴露安全模块
+- 隔离性：输出通过 `StringIO` 捕获，无文件系统访问
+
+### 为什么温度设为 1.0？
+
+- 竞赛场景需要创造性推理和多样化解题路径
+- 过低温度（如 0.1）会导致输出过于确定，缺乏必要的推理探索
+
+---
+
+## 十六、扩展指南
+
+### 添加新学科
+
+1. 在 `router.py` 的 `_RULES` 中添加新学科的关键词
+2. 在 `tool_dispatcher.py` 中添加新学科的分发逻辑
+3. 在 `tools/` 下新建工具类或在 `NumericalComputationTool` 中添加引擎
+4. 在 `UnifiedAgent._build_default_tools()` 中注册
+
+### 添加新工具方法
+
+在 `NumericalComputationTool` 中实现新方法（优先 SymPy，fallback 纯 Python），`_method_registry` 会自动暴露给 ReAct 引擎。
+
+### 接入其他 LLM
+
+实现相同接口：`chat(messages, temperature) → str`，然后：
+```python
+agent = UnifiedAgent(kimi_client=YourClient())
+```
+
+### 自定义评分策略
+
+修改 `competition_run.py` 中的 `grade_answer()` 函数，添加新的匹配层级或调整容差阈值。
+
+---
+
+## 十七、贡献指南
+
+### 开发流程
+
+1. **Fork** 本仓库
+2. 创建特性分支：`git checkout -b feature/your-feature`
+3. 编写代码并添加测试
+4. 运行测试：`python scripts/mini_pytest.py`
+5. 提交 PR
+
+### 代码规范
+
+- 遵循 PEP 8
+- 所有公共方法需包含类型注解
+- 新增功能必须附带单元测试
+- 保持与现有代码风格一致
+
+### 测试要求
+
+- 核心逻辑：必须通过 `mini_pytest.py`
+- 冒烟测试：`python scripts/smoke_test.py`
+- 本地评估：`python scripts/run_local_eval.py`
+
+---
+
+## 十八、许可证
+
+MIT License

@@ -15,6 +15,7 @@ ENV/
 # IDE
 .vscode/
 .idea/
+.claude/
 *.swp
 *.swo
 
@@ -26,9 +27,14 @@ Thumbs.db
 output/
 data/exports/*.json
 !data/exports/.gitkeep
+results.json
+submission.json
+_backup/
 
 # Logs
 *.log
+agent_run_*.txt
+solve_dataset_*.txt
 
 # Temporary scripts
 benchmark.py

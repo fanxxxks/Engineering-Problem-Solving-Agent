@@ -37,7 +37,7 @@ DEFAULT_CONFIDENCE = 0.35
 # ------------------------------------------------------------------------------
 DEFAULT_LLM_TIMEOUT_SECONDS = 120
 DEFAULT_LLM_MAX_TOKENS = 4096
-DEFAULT_LLM_TEMPERATURE = 0.1
+DEFAULT_LLM_TEMPERATURE = 1.0
 
 # ------------------------------------------------------------------------------
 # Exec engine sandbox

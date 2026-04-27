@@ -7,13 +7,13 @@ from eng_solver_agent.formatter import (
 
 def test_formatter_preserves_question_id_and_requires_content() -> None:
     item = format_submission_item(
-        question_id=7,
+        question_id="7",
         reasoning_process="placeholder",
         answer="42",
     )
 
     assert item == {
-        "question_id": 7,
+        "question_id": "7",
         "reasoning_process": "placeholder",
         "answer": "42",
     }

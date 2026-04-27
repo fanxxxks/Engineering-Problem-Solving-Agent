@@ -230,7 +230,7 @@ def main() -> int:
     # Optionally write submission.json
     if args.submission_info:
         submission_path = Path(args.output).parent / "submission.json"
-        save_results(submission_path, generate_submission_info())
+        save_results(submission_path, [generate_submission_info()])
 
     # Print summary
     success_count = sum(1 for r in results if "Error" not in r.get("answer", "") and "暂无法" not in r.get("answer", ""))

@@ -1,8 +1,8 @@
-from eng_solver_agent.agent import EngineeringSolverAgent
+from eng_solver_agent.unified_agent import UnifiedAgent
 
 
 def test_agent_solve_one_returns_competition_shape() -> None:
-    agent = EngineeringSolverAgent()
+    agent = UnifiedAgent()
 
     result = agent.solve_one({"question_id": "q-1", "prompt": "Find voltage."})
 
@@ -11,7 +11,7 @@ def test_agent_solve_one_returns_competition_shape() -> None:
 
 
 def test_agent_solve_handles_multiple_questions() -> None:
-    agent = EngineeringSolverAgent()
+    agent = UnifiedAgent()
 
     results = agent.solve(
         [
