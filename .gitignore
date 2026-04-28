@@ -30,6 +30,7 @@ data/exports/*.json
 results.json
 submission.json
 _backup/
+_backup_before_sync/
 
 # Logs
 *.log
