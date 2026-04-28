@@ -17,12 +17,13 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import time
 from pathlib import Path
 from typing import Any
 
 from eng_solver_agent.adapter import QuestionAdapter
 from eng_solver_agent.config import Settings
-from eng_solver_agent.debug_logger import log_pipeline_stage, section, step, start_file_logging
+from eng_solver_agent.debug_logger import ensure_file_logging, log_pipeline_stage, log_step_timing, section, step
 from eng_solver_agent.formatter import format_submission_item
 from eng_solver_agent.llm.kimi_client import KimiClient
 from eng_solver_agent.llm.prompt_builder import build_analyze_messages, build_draft_messages
@@ -57,6 +58,7 @@ class UnifiedAgent:
         tool_registry: dict[str, Any] | None = None,
         default_mode: str = "auto",
     ) -> None:
+        ensure_file_logging()
         self.settings = settings or Settings.from_env()
         self.adapter = QuestionAdapter()
         self.router = router or QuestionRouter()
@@ -91,6 +93,7 @@ class UnifiedAgent:
         section(f"[开始] 开始解题: {qid}  |  学科: {route.subject}  |  模式: {mode}")
         step("UnifiedAgent", f"题目: {str(normalized.get('question', ''))[:120]}...")
 
+        t_total = time.perf_counter()
         try:
             if mode == "react":
                 result = self._solve_react(normalized, route.subject)
@@ -105,12 +108,19 @@ class UnifiedAgent:
         except Exception as exc:
             result = self._error_result(normalized["question_id"], exc)
 
+        log_step_timing(f"题目 {qid} 总耗时", time.perf_counter() - t_total)
         self.verifier(result)
         return result
 
     def solve(self, questions: list[dict[str, Any]], mode: str | None = None) -> list[dict[str, Any]]:
         """Sequential batch solve."""
-        return [self.solve_one(q, mode=mode) for q in questions]
+        total = len(questions)
+        t0 = time.perf_counter()
+        results = [self.solve_one(q, mode=mode) for q in questions]
+        elapsed = time.perf_counter() - t0
+        avg = elapsed / total if total else 0
+        section(f"[完成] 全部{total}题解答完毕 | 总耗时: {elapsed:.1f}s | 平均每道题: {avg:.1f}s")
+        return results
 
     async def async_solve(
         self,
@@ -173,11 +183,20 @@ class UnifiedAgent:
     def _solve_legacy(self, question: dict[str, Any], subject: str) -> dict[str, Any]:
         """Legacy two-stage pipeline: analyze -> tool -> draft."""
         log_pipeline_stage("传统模式: 分析阶段")
+        t0 = time.perf_counter()
         analysis = self._analyze(question, subject)
+        log_step_timing("分析阶段", time.perf_counter() - t0)
+
         log_pipeline_stage("传统模式: 工具计算阶段")
+        t0 = time.perf_counter()
         tool_result = self.dispatcher.dispatch(question, analysis)
+        log_step_timing("工具计算阶段", time.perf_counter() - t0)
+
         log_pipeline_stage("传统模式: 生成答案阶段")
+        t0 = time.perf_counter()
         draft = self._draft(question, analysis, tool_result)
+        log_step_timing("生成答案阶段", time.perf_counter() - t0)
+
         return format_submission_item(
             question_id=question["question_id"],
             reasoning_process=draft.reasoning_process,
@@ -374,12 +393,8 @@ class UnifiedAgent:
         return KimiClient()
 
     def _build_default_tools(self) -> dict[str, Any]:
-        numerical_tool = NumericalComputationTool()
         return {
-            "physics": numerical_tool,
-            "circuits": numerical_tool,
-            "linalg": numerical_tool,
-            "calculus": numerical_tool,
+            "compute": NumericalComputationTool(),
             "similarity": SimilarProblemTool(),
         }
 

@@ -11,10 +11,11 @@ from __future__ import annotations
 
 import json
 import re
+import time
 from dataclasses import dataclass, field
 from typing import Any
 
-from eng_solver_agent.debug_logger import log_react_step, log_react_final, log_pipeline_stage, step
+from eng_solver_agent.debug_logger import log_react_step, log_react_final, log_pipeline_stage, log_step_timing, step
 
 
 @dataclass
@@ -60,6 +61,7 @@ class ReActEngine:
         messages = self._build_initial_messages(question, subject, topic)
 
         for step_num in range(1, self.MAX_STEPS + 1):
+            t_step_start = time.perf_counter()
             step("ReActEngine", f"[循环] ReAct 第 {step_num}/{self.MAX_STEPS} 步...", color="cyan")
             rs = self._reason_step(messages, step_num)
             result.steps.append(rs)
@@ -69,6 +71,7 @@ class ReActEngine:
                 result.answer = rs.thought
                 result.success = True
                 log_react_final(step_num, rs.thought, True)
+                log_step_timing(f"ReAct 第{step_num}步 (最终答案)", time.perf_counter() - t_step_start)
                 return result
 
             if rs.action and rs.action != "none":
@@ -91,6 +94,8 @@ class ReActEngine:
             else:
                 log_react_step(step_num, rs.thought, None, None, None)
                 messages.append({"role": "user", "content": f"【思考】{rs.thought}\n请继续下一步推理。"})
+
+            log_step_timing(f"ReAct 第{step_num}步", time.perf_counter() - t_step_start)
 
         # Max steps reached
         result.reasoning_process = self._format_reasoning_process(result.steps)
@@ -117,9 +122,12 @@ class ReActEngine:
             f"行动: [工具名称] 或 [无] 或 [最终答案]\n"
             f"行动输入: [工具参数JSON] 或 [空]\n\n"
             f"规则说明：\n"
-            f"1. 工具名称必须是上方列出的工具名（如 physics / calculus / linalg / circuits），不要加命名空间前缀。\n"
-            f"2. 如果要调用某个具体方法（如 newton_second_law / diff / determinant），请在'行动输入'中通过 method 字段指定。\n"
-            f"3. 也可以使用快捷方式：直接写方法名作为'行动'（如 diff），系统会自动找到对应工具。\n"
+            f"1. 工具名称必须是上方列出的工具名（如 compute / similarity），不要加命名空间前缀。\n"
+            f"2. 调用 compute 时，在'行动输入'中传入 JSON：{{\"code\": \"你的Python代码\"}}。\n"
+            f"   代码可使用 sympy/sp 符号运算、numpy/np 数值计算、scipy 科学计算、math 数学函数。\n"
+            f"   使用 print() 输出最终结果，系统会捕获并返回。\n"
+            f"   示例：{{\"code\": \"x = sympy.Symbol('x'); result = sympy.diff(x**2, x); print(result)\"}}\n"
+            f"3. 调用 similarity 时，在'行动输入'中传入 JSON：{{\"query\": \"搜索内容\"}} 或 {{\"method\": \"find_similar\", ...}}。\n"
             f"4. 行动输入必须是合法的 JSON 对象。\n"
             f"5. 如果不需要工具，行动填'无'。\n"
             f"6. 如果已经得到最终答案，行动填'最终答案'，思考中写出答案。"
@@ -130,46 +138,15 @@ class ReActEngine:
         ]
 
     _METHOD_SIGNATURES: dict[str, str] = {
-        "diff": 'diff(expression, var="x", order=1)',
-        "integrate": 'integrate(expression, var="x", lower=None, upper=None)',
-        "limit": 'limit(expression, var="x", point=0, direction="both")',
-        "critical_points": 'critical_points(expression, var="x")',
-        "taylor_series": 'taylor_series(expression, var="x", center=0, order=5)',
-        "determinant": 'determinant(matrix=[[a,b],[c,d]])',
-        "matrix_inverse": 'matrix_inverse(matrix=[[a,b],[c,d]])',
-        "rank": 'rank(matrix=[[a,b],[c,d]])',
-        "eigenvalues": 'eigenvalues(matrix=[[a,b],[c,d]])',
-        "eigenvectors": 'eigenvectors(matrix=[[a,b],[c,d]])',
-        "solve_linear_system": 'solve_linear_system(matrix=[[a,b],[c,d]], rhs=[e,f])',
-        "matrix_power": 'matrix_power(matrix=[[a,b],[c,d]], exponent=N)',
-        "equivalent_resistance": 'equivalent_resistance(resistors=[R1,R2,...], topology="series")',
-        "node_analysis": 'node_analysis(netlist={...})',
-        "meshh_analysis": 'mesh_analysis(resistance_matrix=[[...]], source_vector=[...])',
-        "solve_relation": 'solve_relation(relation="uniform_acceleration", knowns={"v0":2,...}, target="v")',
-        "newton_second_law": 'newton_second_law(knowns={"m":2,"a":5}, target="F")',
-        "momentum": 'momentum(knowns={"m":3,"v":4}, target="p")',
-        "work_energy": 'work_energy(knowns={"m":2,"v0":1,"v":5}, target="W")',
-        "execute_code": 'execute_code(code="python code using sympy/math/np")',
-        "simplify": 'simplify(expression)',
+        "solve": 'solve(code="Python code using sympy/numpy/scipy/math, use print() to output")',
+        "compute": 'compute(code="Python code using sympy/numpy/scipy/math, use print() to output")',
+        "compute_from_query": 'compute_from_query(code="Python code using sympy/numpy/scipy/math")',
     }
 
     _PARAM_ALIASES: dict[str, dict[str, str]] = {
-        "diff": {"variable": "var", "function": "expression", "expr": "expression"},
-        "integrate": {"variable": "var", "function": "expression", "expr": "expression", "lower_limit": "lower", "upper_limit": "upper", "from": "lower", "to": "upper"},
-        "limit": {"variable": "var", "function": "expression", "expr": "expression"},
-        "critical_points": {"variable": "var", "expr": "expression"},
-        "taylor_series": {"variable": "var", "expr": "expression"},
-        "determinant": {},
-        "matrix_inverse": {},
-        "rank": {},
-        "eigenvalues": {},
-        "eigenvectors": {},
-        "solve_linear_system": {"b": "rhs", "vector": "rhs", "right_hand_side": "rhs"},
-        "matrix_power": {"power": "exponent", "n": "exponent"},
-        "equivalent_resistance": {"connection": "topology", "connection_type": "topology"},
-        "newton_second_law": {"mass": "m", "acceleration": "a", "force": "F"},
-        "momentum": {"mass": "m", "velocity": "v"},
-        "work_energy": {"mass": "m", "v_initial": "v0", "v_final": "v"},
+        "solve": {"query": "code", "expression": "code", "expr": "code"},
+        "compute": {"query": "code", "expression": "code", "expr": "code"},
+        "compute_from_query": {"query": "code", "expression": "code", "expr": "code"},
     }
 
     @staticmethod
@@ -195,8 +172,6 @@ class ReActEngine:
         lines.append("常用方法及参数签名（可直接作为'行动'使用）：")
         seen: set[str] = set()
         for method, (tool_name, _) in self._method_registry.items():
-            if method in ("solve", "compute"):
-                continue
             if method not in seen:
                 seen.add(method)
                 sig = ReActEngine._METHOD_SIGNATURES.get(method, f"{method}(...)")
@@ -301,7 +276,7 @@ class ReActEngine:
         tool = self.tools.get(action)
         if tool is not None:
             input_copy = dict(action_input)
-            method_name = input_copy.pop("method", "solve")
+            method_name = input_copy.pop("method", "compute")
             method = getattr(tool, method_name, None)
             if method is None:
                 return f"错误: 工具 '{action}' 没有方法 '{method_name}'"

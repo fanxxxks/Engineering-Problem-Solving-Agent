@@ -266,6 +266,13 @@ def log_pipeline_stage(stage: str, detail: str = "") -> None:
     print(_c(f"\n[{_ts()}][PIPELINE] > {stage}", "blue") + (f"  {detail}" if detail else ""), flush=True)
 
 
+def log_step_timing(step_desc: str, elapsed: float) -> None:
+    """Print step elapsed time, precise to 0.1 seconds."""
+    if not is_verbose():
+        return
+    print(_c(f"[{_ts()}]", "cyan") + _c(f" ⏱ {step_desc} → {elapsed:.1f}s", "yellow"), flush=True)
+
+
 def log_error(module: str, error: Exception) -> None:
     if not is_verbose():
         return

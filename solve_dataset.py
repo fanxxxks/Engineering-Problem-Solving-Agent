@@ -215,6 +215,7 @@ def main() -> int:
     agent = UnifiedAgent(**agent_kwargs)
 
     # Solve
+    t0 = time.perf_counter()
     try:
         results = run_single(all_questions, args.mode, args.max_concurrent, agent)
     except KeyboardInterrupt:
@@ -233,8 +234,12 @@ def main() -> int:
         save_results(submission_path, [generate_submission_info()])
 
     # Print summary
+    total_elapsed = time.perf_counter() - t0
     success_count = sum(1 for r in results if "Error" not in r.get("answer", "") and "暂无法" not in r.get("answer", ""))
-    print(f"\nSummary: {success_count}/{len(results)} questions answered successfully")
+    n = len(results)
+    print(f"\n{'='*64}")
+    print(f"  答题完成: {success_count}/{n} 成功 | 总耗时: {total_elapsed:.1f}s | 平均每道题: {total_elapsed/n:.1f}s")
+    print(f"{'='*64}")
 
     return 0
 
