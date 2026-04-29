@@ -60,6 +60,25 @@ class SimilarProblemTool:
             solved_examples=self.examples,
         )
 
+        # Try to load embedding model for vector-based comparison
+        self._embeddings: Any | None = None
+        try:
+            from langchain_community.embeddings import HuggingFaceEmbeddings
+            self._embeddings = HuggingFaceEmbeddings(
+                model_name="./local_models/sentence-transformers/all-MiniLM-L6-v2"
+            )
+        except Exception:
+            pass
+
+        # Try to load Cross-Encoder for fine re-rank (Stage 2)
+        self._reranker: Any | None = None
+        try:
+            from eng_solver_agent.retrieval.reranker import BGEReranker
+            self._reranker = BGEReranker()
+            self._reranker.load()
+        except Exception:
+            pass
+
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
@@ -108,34 +127,58 @@ class SimilarProblemTool:
             return {"matched_examples": [], "matched_formulas": [], "metadata": {"error": "empty query"}}
 
         # Use vector retriever if available; otherwise keyword fallback
+        # Request top_k * 2 so we have enough after filtering
+        recall_k = top_k * 2
         if self._vector_retriever is not None:
             retrieval_result = self._vector_retriever.retrieve(
-                query, subject=subject, topic=topic, top_k=top_k * 2
+                query, subject=subject, topic=topic, top_k=recall_k
             )
         else:
             retrieval_result = self._keyword_retriever.retrieve(
-                query, subject=subject, topic=topic, top_k=top_k * 2
+                query, subject=subject, topic=topic, top_k=recall_k
             )
 
-        # Score and rank examples with detailed similarity metrics
-        scored_examples = []
-        for example in retrieval_result.solved_examples:
-            score_detail = self.match_score(query, example)
-            if score_detail["overall_score"] > 0:
-                scored_examples.append((score_detail["overall_score"], score_detail, example))
+        # ── Stage 2: Cross-Encoder re-rank (or fallback to match_score) ──
+        if self._reranker is not None and self._reranker.is_available:
+            top_examples = self._reranker.rerank(
+                query,
+                retrieval_result.solved_examples,
+                text_fn=lambda c: f"{c.get('question','')} {c.get('reasoning_process','')[:300]} {c.get('answer','')}",
+                top_k=top_k,
+            )
+            top_formulas = self._reranker.rerank(
+                query,
+                retrieval_result.formula_cards,
+                text_fn=lambda c: f"{c.get('topic','')} {c.get('formula','')} {' '.join(c.get('conditions',[]))}",
+                top_k=top_k,
+            )
+        else:
+            # Fallback: embedding-cosine match_score
+            scored_examples = []
+            for example in retrieval_result.solved_examples:
+                score_detail = self.match_score(query, example)
+                if score_detail["overall_score"] > 0:
+                    scored_examples.append((score_detail["overall_score"], score_detail, example))
+            scored_examples.sort(key=lambda x: (-x[0], x[2].get("question_id", "")))
+            top_examples_raw = scored_examples[:top_k]
 
-        scored_examples.sort(key=lambda x: (-x[0], x[2].get("question_id", "")))
-        top_examples = scored_examples[:top_k]
+            scored_formulas = []
+            for card in retrieval_result.formula_cards:
+                score_detail = self._match_formula_score(query, card)
+                if score_detail["overall_score"] > 0:
+                    scored_formulas.append((score_detail["overall_score"], score_detail, card))
+            scored_formulas.sort(key=lambda x: (-x[0], x[2].get("id", "")))
+            top_formulas_raw = scored_formulas[:top_k]
 
-        # Score and rank formula cards
-        scored_formulas = []
-        for card in retrieval_result.formula_cards:
-            score_detail = self._match_formula_score(query, card)
-            if score_detail["overall_score"] > 0:
-                scored_formulas.append((score_detail["overall_score"], score_detail, card))
-
-        scored_formulas.sort(key=lambda x: (-x[0], x[2].get("id", "")))
-        top_formulas = scored_formulas[:top_k]
+            # Convert to same format as reranker output
+            top_examples = [
+                {**ex, "relevance_score": score}
+                for score, _detail, ex in top_examples_raw
+            ]
+            top_formulas = [
+                {**card, "relevance_score": score}
+                for score, _detail, card in top_formulas_raw
+            ]
 
         return {
             "query": query,
@@ -149,10 +192,9 @@ class SimilarProblemTool:
                     "question": ex.get("question"),
                     "answer": ex.get("answer"),
                     "reasoning_process": ex.get("reasoning_process", "")[:200],
-                    "similarity_score": round(score, 4),
-                    "score_breakdown": detail,
+                    "similarity_score": ex.get("relevance_score", 0.0),
                 }
-                for score, detail, ex in top_examples
+                for ex in top_examples
             ],
             "matched_formulas": [
                 {
@@ -161,10 +203,9 @@ class SimilarProblemTool:
                     "topic": card.get("topic"),
                     "formula": card.get("formula"),
                     "conditions": card.get("conditions", [])[:3],
-                    "similarity_score": round(score, 4),
-                    "score_breakdown": detail,
+                    "similarity_score": card.get("relevance_score", 0.0),
                 }
-                for score, detail, card in top_formulas
+                for card in top_formulas
             ],
             "metadata": {
                 "total_examples_searched": len(self.examples),
@@ -174,24 +215,53 @@ class SimilarProblemTool:
             },
         }
 
+    def _cosine(self, a: list[float], b: list[float]) -> float:
+        """Compute cosine similarity between two embedding vectors."""
+        import numpy as np
+        va = np.array(a, dtype=np.float64)
+        vb = np.array(b, dtype=np.float64)
+        dot = float(np.dot(va, vb))
+        na = float(np.linalg.norm(va))
+        nb = float(np.linalg.norm(vb))
+        if na == 0 or nb == 0:
+            return 0.0
+        return dot / (na * nb)
+
     def compare_questions(self, question_a: str, question_b: str) -> dict[str, Any]:
-        """Compare two questions and return detailed similarity metrics.
+        """Compare two questions using semantic embedding similarity.
 
-        Args:
-            question_a: First question text.
-            question_b: Second question text.
-
-        Returns:
-            A dict with token overlap, structural similarity, keyword match,
-            and an overall similarity score.
+        When HuggingFace embeddings are available, uses cosine similarity
+        between dense vectors (weight 70%) combined with structural feature
+        overlap (weight 30%). Falls back to Jaccard + keyword rules otherwise.
         """
+        # ── Vector-based path ──────────────────────────────────────────
+        if self._embeddings is not None:
+            vec_a = self._embeddings.embed_query(self._normalize_text(question_a))
+            vec_b = self._embeddings.embed_query(self._normalize_text(question_b))
+            semantic_sim = self._cosine(vec_a, vec_b)
+
+            struct_a = self._extract_structural_features(question_a)
+            struct_b = self._extract_structural_features(question_b)
+            overlap = sum(1 for k, v in struct_a.items() if struct_b.get(k) == v)
+            total = max(len(struct_a), len(struct_b), 1)
+            struct_sim = overlap / total
+
+            overall = semantic_sim * 0.7 + struct_sim * 0.3
+            return {
+                "method": "vector",
+                "semantic_similarity": round(semantic_sim, 4),
+                "structural_similarity": round(struct_sim, 4),
+                "overall_similarity": round(overall, 4),
+            }
+
+        # ── Rule-based fallback ────────────────────────────────────────
         tokens_a = set(self._tokenize(self._normalize_text(question_a)))
         tokens_b = set(self._tokenize(self._normalize_text(question_b)))
 
         if not tokens_a or not tokens_b:
             return {
-                "token_overlap": 0.0,
-                "jaccard_similarity": 0.0,
+                "method": "rule",
+                "semantic_similarity": 0.0,
                 "structural_similarity": 0.0,
                 "overall_similarity": 0.0,
             }
@@ -200,14 +270,12 @@ class SimilarProblemTool:
         union = tokens_a | tokens_b
         jaccard = len(intersection) / len(union) if union else 0.0
 
-        # Structural similarity: compare numeric patterns, matrix patterns, etc.
         struct_a = self._extract_structural_features(question_a)
         struct_b = self._extract_structural_features(question_b)
         struct_overlap = sum(1 for k, v in struct_a.items() if struct_b.get(k) == v)
-        struct_total = max(len(struct_a), len(struct_b))
-        struct_sim = struct_overlap / struct_total if struct_total else 0.0
+        struct_total = max(len(struct_a), len(struct_b), 1)
+        struct_sim = struct_overlap / struct_total
 
-        # Keyword boost for mathematical terms
         math_keywords = {
             "导数", "积分", "极限", "行列式", "矩阵", "特征值", "特征向量",
             "电阻", "电路", "串联", "并联", "牛顿", "动量", "能量", "功",
@@ -217,31 +285,25 @@ class SimilarProblemTool:
         }
         keywords_a = tokens_a & math_keywords
         keywords_b = tokens_b & math_keywords
-        keyword_overlap = len(keywords_a & keywords_b)
-        keyword_total = max(len(keywords_a), len(keywords_b))
-        keyword_sim = keyword_overlap / keyword_total if keyword_total else 0.0
+        kw_overlap = len(keywords_a & keywords_b)
+        kw_total = max(len(keywords_a), len(keywords_b), 1)
+        keyword_sim = kw_overlap / kw_total
 
-        # Weighted overall score
         overall = jaccard * 0.4 + struct_sim * 0.35 + keyword_sim * 0.25
-
         return {
-            "token_overlap_count": len(intersection),
-            "token_union_count": len(union),
-            "jaccard_similarity": round(jaccard, 4),
+            "method": "rule",
+            "semantic_similarity": round(jaccard * 0.6 + keyword_sim * 0.4, 4),
             "structural_similarity": round(struct_sim, 4),
-            "keyword_similarity": round(keyword_sim, 4),
             "overall_similarity": round(overall, 4),
         }
 
     def match_score(self, query: str, candidate: dict[str, Any]) -> dict[str, Any]:
-        """Calculate a detailed match score between a query and a candidate problem.
+        """Calculate a detailed match score using semantic embeddings.
 
-        Args:
-            query: The input question text.
-            candidate: A dict representing a solved example.
-
-        Returns:
-            A dict with individual score components and an overall score.
+        Uses cosine similarity between dense embedding vectors (from HuggingFace
+        all-MiniLM-L6-v2) combined with structural feature matching, plus
+        subject/topic boosts. Falls back to Jaccard + keyword rules when
+        embeddings are unavailable.
         """
         candidate_text = " ".join(
             str(candidate.get(field, "")) for field in ("question", "reasoning_process", "answer", "topic")
@@ -264,9 +326,9 @@ class SimilarProblemTool:
         overall = min(1.0, comparison["overall_similarity"] + subject_boost + topic_boost)
 
         return {
-            "text_similarity": comparison["jaccard_similarity"],
+            "method": comparison.get("method", "rule"),
+            "semantic_similarity": comparison["semantic_similarity"],
             "structural_similarity": comparison["structural_similarity"],
-            "keyword_similarity": comparison["keyword_similarity"],
             "subject_boost": round(subject_boost, 4),
             "topic_boost": round(topic_boost, 4),
             "overall_score": round(overall, 4),
@@ -338,7 +400,7 @@ class SimilarProblemTool:
         return features
 
     def _match_formula_score(self, query: str, card: dict[str, Any]) -> dict[str, Any]:
-        """Score a formula card against a query."""
+        """Score a formula card against a query using semantic similarity."""
         card_text = " ".join(
             str(card.get(field, "")) for field in ("topic", "formula", "conditions", "common_traps")
         )
@@ -357,9 +419,9 @@ class SimilarProblemTool:
         overall = min(1.0, comparison["overall_similarity"] + subject_boost + topic_boost)
 
         return {
-            "text_similarity": comparison["jaccard_similarity"],
+            "method": comparison.get("method", "rule"),
+            "semantic_similarity": comparison["semantic_similarity"],
             "structural_similarity": comparison["structural_similarity"],
-            "keyword_similarity": comparison["keyword_similarity"],
             "subject_boost": round(subject_boost, 4),
             "topic_boost": round(topic_boost, 4),
             "overall_score": round(overall, 4),

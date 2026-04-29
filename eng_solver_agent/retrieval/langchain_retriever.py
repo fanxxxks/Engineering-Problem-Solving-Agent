@@ -44,7 +44,7 @@ except Exception:
 # ------------------------------------------------------------------------------
 # Constants
 # ------------------------------------------------------------------------------
-_EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+_EMBEDDING_MODEL = "./local_models/sentence-transformers/all-MiniLM-L6-v2"
 _FAISS_INDEX_DIR = "faiss_index"
 
 
@@ -93,6 +93,9 @@ class LangChainRetriever:
 
         Uses hybrid scoring when vector search is available; otherwise
         falls back to pure keyword matching.
+
+        Note: ``top_k`` is the number of *final* results requested. Internally
+        we recall ``max(top_k * 10, 50)`` candidates for Cross-Encoder re-rank.
         """
         if not query:
             return RetrievalResult(
@@ -100,17 +103,19 @@ class LangChainRetriever:
             )
 
         subject_key = self._normalize_subject(subject)
+        # Coarse recall: fetch many candidates for downstream re-rank
+        recall_k = max(top_k * 10, 50)
 
         if self._vectorstore is not None:
             formula_hits = self._vector_search(
-                query, doc_type="formula_card", subject=subject_key, topic=topic, top_k=top_k
+                query, doc_type="formula_card", subject=subject_key, topic=topic, top_k=recall_k
             )
             example_hits = self._vector_search(
-                query, doc_type="solved_example", subject=subject_key, topic=topic, top_k=top_k
+                query, doc_type="solved_example", subject=subject_key, topic=topic, top_k=recall_k
             )
         else:
             formula_hits, example_hits = self._fallback_keyword_search(
-                query, subject_key, topic, top_k
+                query, subject_key, topic, recall_k
             )
 
         matched_terms = sorted(set(self._tokenize(query)))
@@ -179,8 +184,10 @@ class LangChainRetriever:
     # ------------------------------------------------------------------
 
     def _init_vectorstore(self) -> None:
-        """Build or load the FAISS vector store."""
+        """Build or load the FAISS vector store (GPU-first, CPU fallback)."""
         if self.load_index():
+            # Post-load: try to migrate index to GPU
+            self._try_gpu_migrate()
             return
 
         docs = self._build_documents()
@@ -190,8 +197,22 @@ class LangChainRetriever:
 
         self._embeddings = HuggingFaceEmbeddings(model_name=_EMBEDDING_MODEL)
         self._vectorstore = FAISS.from_documents(docs, self._embeddings)
+        self._try_gpu_migrate()
         try:
             self.save_index()
+        except Exception:
+            pass
+
+    def _try_gpu_migrate(self) -> None:
+        """Migrate FAISS index to GPU if available."""
+        if self._vectorstore is None:
+            return
+        try:
+            import faiss
+            if faiss.get_num_gpus() > 0:
+                index = self._vectorstore.index
+                if not isinstance(index, faiss.GpuIndex):
+                    self._vectorstore.index = faiss.index_cpu_to_all_gpus(index)
         except Exception:
             pass
 

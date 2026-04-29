@@ -1,10 +1,50 @@
-langchain==0.3.25
-langchain-core==0.3.65
-langchain-community==0.3.24
-langchain-openai==0.3.16
-langchain-huggingface==0.1.2
-numpy==2.0.2
-sympy==1.13.3
-sentence-transformers==3.3.1
-faiss-cpu==1.9.0
-python-dotenv==1.0.1
+# =============================================================================
+# Engineering Problem Solving Agent — full environment dependencies
+#
+# One-line CPU deploy:
+#   pip install -r requirements.txt
+#
+# One-line GPU deploy (NVIDIA RTX 50xx / Blackwell):
+#   pip install -r requirements.txt
+#   pip uninstall torch -y
+#   pip install torch --index-url https://download.pytorch.org/whl/nightly/cu128
+#
+# One-line model download:
+#   mkdir -p local_models
+#   python -c "
+#   from modelscope import snapshot_download
+#   snapshot_download('sentence-transformers/all-MiniLM-L6-v2', cache_dir='./local_models')
+#   snapshot_download('BAAI/bge-reranker-v2-m3', cache_dir='./local_models')
+#   "
+# =============================================================================
+
+# ── Core math engines ───────────────────────────────────────────────────
+sympy>=1.13
+numpy>=2.0
+scipy>=1.14
+
+# ── LLM / LangChain ─────────────────────────────────────────────────────
+langchain>=0.3.0
+langchain-community>=0.3.0
+langchain-core>=0.3.0
+langchain-openai>=0.3.0
+openai>=1.100.0
+tiktoken>=0.12.0
+
+# ── Embeddings & Retrieval ──────────────────────────────────────────────
+sentence-transformers>=5.4.0
+faiss-cpu>=1.9.0
+transformers>=5.0.0
+huggingface_hub>=1.0.0
+
+# ── Model download (China mirror) ───────────────────────────────────────
+modelscope>=1.30.0
+
+# ── Utilities ───────────────────────────────────────────────────────────
+httpx>=0.28.0
+pydantic>=2.0.0
+python-dotenv>=1.0.0
+pyyaml>=6.0
+requests>=2.30.0
+tenacity>=9.0.0
+scikit-learn>=1.5.0

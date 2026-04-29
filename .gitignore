@@ -54,3 +54,4 @@ data/电路原理题集.json
 data/dev/*.json
 !data/dev/dev.json
 !data/dev/hard_test.json
+local_models/
