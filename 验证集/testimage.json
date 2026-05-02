@@ -1,26 +1,5 @@
 [
-  {
-    "question_id": "CIR_001",
-    "type": "填空题",
-    "difficulty": "简单",
-    "question": "某非线性电阻的伏安特性为 u = i^2 + 2i，u、i 取关联参考方向。当 i = 1 A 时，求其静态电阻与动态电阻。",
-    "answer": "3Ω；4Ω。"
-  },
-  {
-    "question_id": "CIR_002",
-    "type": "填空题",
-    "difficulty": "简单",
-    "question": "在 RLC 串联二阶电路中，C = 1 μF，L = 10 mH。使该电路呈欠阻尼状态的 R 值范围为______。",
-    "answer": "0<R<200Ω"
-  },
-  {
-    "question_id": "CIR_003",
-    "type": "填空题",
-    "difficulty": "简单",
-    "question": "两个容值均为 1 μF 的电容串联，对外等效电容为多少；两个感值均为 1 mH 的电感串联，对外等效电感为多少？",
-    "answer": "0.5μF；2mH。"
-  },
-  {
+      {
     "question_id": "CIR_004",
     "type": "计算题",
     "difficulty": "中等",

@@ -145,10 +145,7 @@ def _ts() -> str:
 
 
 def _truncate(text: str, limit: int = 800) -> str:
-    text = str(text)
-    if len(text) <= limit:
-        return text
-    return text[:limit] + _c(f" ...(+{len(text)-limit} chars)", "gray")
+    return str(text)
 
 
 # ── Public API ─────────────────────────────────────────────────────────────────
@@ -184,7 +181,7 @@ def log_llm_request(
         content = str(msg.get("content", ""))
         role_color = {"system": "magenta", "user": "yellow", "assistant": "green"}.get(role, "white")
         print(_c(f"|  [{role.upper()}]", role_color))
-        for line in _truncate(content, 600).splitlines():
+        for line in content.splitlines():
             print(f"|    {line}")
     print(_c("+" + "-" * 63, "blue"), flush=True)
 
@@ -193,9 +190,19 @@ def log_llm_response(content: str, call_label: str = "LLM RESPONSE") -> None:
     if not is_verbose():
         return
     print(_c(f"\n+-- {call_label} -----------------------------------------------", "green"), flush=True)
-    for line in _truncate(content, 1000).splitlines():
+    for line in content.splitlines():
         print(f"|  {line}")
     print(_c("+" + "-" * 63, "green"), flush=True)
+
+
+def log_llm_thinking(reasoning: str) -> None:
+    """Print the model's internal thinking / chain-of-thought."""
+    if not is_verbose():
+        return
+    print(_c(f"\n+-- [THINKING] 模型思考过程 ------------------------------------", "magenta"), flush=True)
+    for line in reasoning.splitlines():
+        print(_c(f"|  {line}", "gray"))
+    print(_c("+" + "-" * 63, "magenta"), flush=True)
 
 
 def log_llm_error(error: Exception, attempt: int, max_retry: int) -> None:

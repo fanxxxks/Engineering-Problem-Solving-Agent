@@ -34,6 +34,7 @@ from eng_solver_agent.router import QuestionRouter
 from eng_solver_agent.schemas import AnalyzeResult, DraftResult
 from eng_solver_agent.tool_dispatcher import ToolDispatcher
 from eng_solver_agent.tools import NumericalComputationTool, SimilarProblemTool
+from eng_solver_agent.tools.image_tool import ImageDescriptionTool
 from eng_solver_agent.verifier import validate_final_answer
 
 
@@ -262,7 +263,7 @@ class UnifiedAgent:
             try:
                 response = self.kimi_client.chat_json(
                     build_analyze_messages(question, subject=subject_hint),
-                    temperature=0.0,
+                    temperature=1.0,
                     required_keys=(
                         "subject", "topic", "knowns", "unknowns",
                         "equations_or_theorems", "should_use_tool",
@@ -287,7 +288,7 @@ class UnifiedAgent:
             try:
                 response = self.kimi_client.chat_json(
                     build_draft_messages(question, analysis, tool_results=[tool_result]),
-                    temperature=0.0,
+                    temperature=1.0,
                     required_keys=("reasoning_process", "answer"),
                 )
                 draft = DraftResult.model_validate(response)
@@ -396,6 +397,7 @@ class UnifiedAgent:
         return {
             "compute": NumericalComputationTool(),
             "similarity": SimilarProblemTool(),
+            "image": ImageDescriptionTool(kimi_client=self.kimi_client),
         }
 
     def _build_default_retriever(self) -> Retriever:
