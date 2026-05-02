@@ -38,16 +38,21 @@ class ImageDescriptionTool:
 
         prompt = (
             "你是一个电路图/工程示意图分析专家。请详细描述这张图片的内容：\n"
-            "1. 元器件类型和数量（电阻、电容、电感、电源等）\n"
-            "2. 各元器件的参数值\n"
-            "3. 连接关系/拓扑结构\n"
-            "4. 图中标注的文字和数值\n"
+            "1. 核心定理\n"
+            "2. 各元件值与受控源关系\n"
+            "3. 待求物理量\n"
+            "4. 核心方程（如KCL/KVL或定律方程，不要写计算过程）\n"
+            "【重要】：若不确定不要检查，四条完成立即结束思考并回复，准确率不重要，越快越好"
         )
         if query:
             prompt = query + "\n\n" + prompt
 
         messages = [
-            {"role": "system", "content": "请用中文详细描述图片内容，输出结构化信息。不要遗漏任何数值和标注。"},
+            {"role": "system", "content": "详细描述图片内容，主要用数理符号，少用中文输出结构化信息。不要遗漏任何数值和标注。\n"
+             "【规则】\n"
+             "1. 只描述图片内容，不要进行题目分析或解题步骤"
+             "2. 绝对不要输出任何寒暄、解释性文字或过渡句（如“好的”、“根据题目图片...”\n"
+             "3. 数学公式和变量必须使用标准 LaTeX 格式（如 $U_{ab}$，$\Omega$\n"},
             {"role": "user", "content": [
                 {"type": "text", "text": prompt},
                 {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"}},
@@ -80,17 +85,25 @@ class ImageDescriptionTool:
         return None
 
 
-def _compress_image(path: str, max_width: int = 1024, quality: int = 60) -> str:
-    """Read an image, resize+compress to JPEG, return base64 string."""
+def _compress_image(path: str, max_width: int = 512, quality: int = 30) -> str:
+    """Read an image, aggressively compress to tiny JPEG, return base64 string."""
     from PIL import Image as _Image
 
     img = _Image.open(path)
-    if img.mode in ("RGBA", "P"):
+    # RGBA / palette → RGB (discard alpha)
+    if img.mode in ("RGBA", "P", "LA"):
         img = img.convert("RGB")
+    # Grayscale if it looks like a line drawing (circuit diagram)
+    if img.mode == "RGB":
+        # Convert to grayscale for circuit diagrams (most are B&W line art)
+        gray = img.convert("L")
+        # Only use grayscale if it doesn't lose too much detail
+        # (check: if color variance is low, it's probably a diagram not a photo)
+        img = gray.convert("RGB")
     w, h = img.size
     if w > max_width:
         ratio = max_width / w
         img = img.resize((max_width, int(h * ratio)), _Image.LANCZOS)
     buf = BytesIO()
-    img.save(buf, format="JPEG", quality=quality)
+    img.save(buf, format="JPEG", quality=quality, optimize=True)
     return base64.b64encode(buf.getvalue()).decode()

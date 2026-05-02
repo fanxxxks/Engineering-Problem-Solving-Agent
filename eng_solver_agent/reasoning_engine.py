@@ -113,6 +113,29 @@ class ReActEngine:
                 log_react_step(step_num, rs.thought, None, None, None)
                 messages.append({"role": "user", "content": f"【思考】{rs.thought}\n请继续下一步推理。"})
 
+            # After step 1: replace verbose user prompt with short instruction
+            if step_num == 1 and len(messages) >= 2:
+                messages[1]["content"] = (
+                    f"题目：{str(question.get('question', ''))[:200]}\n"
+                    f"不要反复推敲。不确定时立即 similarity 搜参考。\n"
+                    f"【工具】只有三个，每个只有一种调用方式：\n\n"
+                    f"  工具1 — compute（数值/符号计算）\n"
+                    f"    行动: compute\n"
+                    f"    行动输入: {{\"code\": \"Python代码\"}}\n"
+                    f"    代码环境: sympy, sp, numpy, np, scipy, math, Symbol, solve, diff, integrate, limit, Matrix, pi, sin, cos, sqrt 等\n"
+                    f"    必须用 print() 输出结果。\n\n"
+                    f"  工具2 — similarity（相似题搜索，不确定时必须用！）\n"
+                    f"    行动: similarity\n"
+                    f"    行动输入: {{\"query\": \"完整题目文本\", \"subject\": \"{subject}\", \"topic\": \"{topic}\", \"top_k\": 5}}\n"
+                    f"    query: 必填，完整题目或关键句。subject: 必填，只能填 physics / circuits / linalg / calculus。\n"
+                    f"    topic: 选填，不确定就填 \"\"。top_k: 选填，默认 5。\n\n"
+                    f"  工具3 — image（图片转文字，仅当题目有配图时使用）\n"
+                    f"    行动: image\n"
+                    f"    行动输入: {{\"image_path\": \"图片路径\"}}\n"
+                    f"    将配图发送给视觉模型，返回结构化的电路/图表描述。\n\n"
+                    f"得到答案后立即 最终答案。"
+                )
+
             log_step_timing(f"ReAct 第{step_num}步", time.perf_counter() - t_step_start)
 
         # Max steps reached
@@ -137,22 +160,14 @@ class ReActEngine:
         elif difficulty == "困难":
             difficulty_prompt = (
                 "【本题难度：困难 — 已生成解题计划】\n"
-                "系统已在前面帮你分析了详细的解题步骤计划。\n"
-                "请严格按照计划逐步求解，遇到计算调用 compute，遇到陌生题型调用 similarity。\n\n"
+                "遇到不确定的步骤不要反复推敲，立即用 similarity 搜相似题参考。\n"
+                "需要计算时用 compute。严格按计划逐步求解。\n\n"
             )
         else:
             difficulty_prompt = (
-                "【解题策略 — 第一步必须判断题目的意图与难度】\n"
-                "在第一步思考中，明确输出以下结构化信息：\n"
-                "  意图: [学科] [知识点] [题型: 计算/证明/概念]\n"
-                "  难度: [简单/中等/困难]\n"
-                "然后根据难度选择策略：\n"
-                "- 简单：直接代入公式即可求解，已知条件明确，计算量小。\n"
-                "  策略：直接使用 compute 工具，编写 sympy/numpy 代码完成计算。\n"
-                "- 中等：需要多步推导、联立方程或综合运用多个知识点。\n"
-                "  策略：先自行推导关键步骤，再用 compute 工具执行数值/符号计算验证。\n"
-                "- 困难：题型陌生、涉及复杂证明、或需要借鉴类似题目的解题思路。\n"
-                "  策略：优先使用 similarity 工具搜索相似题目，参考其解题方法后再作答。\n\n"
+                "【本题难度：中等】\n"
+                "先推导关键步骤，遇到不确定的不要反复推敲，用 similarity 搜参考。\n"
+                "需要计算时用 compute 执行。\n\n"
             )
 
         system_prompt = (
@@ -161,10 +176,10 @@ class ReActEngine:
             "需要计算时可以调用工具，最终给出明确的答案。\n"
             "推理过程要详细完整，用于评分。\n\n"
         ) + difficulty_prompt + (
-            "【重要 — 得到答案后立即停止】\n"
-            "一旦你或工具已经计算出了最终答案，立即输出 行动: 最终答案。\n"
-            "不要再用另一个工具去验证已验证的结果，不要反复调用 compute。\n"
-            "工具调用一次就够了，信任工具的计算结果，直接输出答案并结束。"
+            "【重要】\n"
+            "1. 不要反复推敲。不确定时立即调用 similarity。query 写完整题目，subject 从 physics/circuits/linalg/calculus 四选一，topic 不确定就填 \"\"。\n"
+            "2. 得到答案后立即输出 行动: 最终答案，不要再用工具验证。\n"
+            "3. 信任工具结果，工具调用一次就够。"
         )
         # If question has an image, include the path as a hint
         image_path = question.get("image", "")
@@ -181,10 +196,11 @@ class ReActEngine:
             f"    行动输入: {{\"code\": \"Python代码\"}}\n"
             f"    代码环境: sympy, sp, numpy, np, scipy, math, Symbol, solve, diff, integrate, limit, Matrix, pi, sin, cos, sqrt 等\n"
             f"    必须用 print() 输出结果。\n\n"
-            f"  工具2 — similarity（相似题搜索）\n"
+            f"  工具2 — similarity（相似题搜索，不确定时必须用！）\n"
             f"    行动: similarity\n"
-            f"    行动输入: {{\"query\": \"题目文本\", \"subject\": \"{subject}\", \"topic\": \"{topic}\", \"top_k\": 5}}\n"
-            f"    返回最相关的 top_k 道相似例题和公式卡。\n\n"
+            f"    行动输入: {{\"query\": \"完整题目文本\", \"subject\": \"{subject}\", \"topic\": \"{topic}\", \"top_k\": 5}}\n"
+            f"    query: 必填，完整题目或关键句。subject: 必填，只能填 physics / circuits / linalg / calculus。\n"
+            f"    topic: 选填，不确定就填 \"\"。top_k: 选填，默认 5。\n\n"
             f"  工具3 — image（图片转文字，仅当题目有配图时使用）\n"
             f"    行动: image\n"
             f"    行动输入: {{\"image_path\": \"图片路径\"}}\n"
@@ -195,7 +211,7 @@ class ReActEngine:
             f"  行动输入: [JSON 或 {{}} ]\n\n"
             f"【行动详解】\n"
             f"  compute    → 需要数值/符号计算时使用，传入 Python 代码\n"
-            f"  similarity → 困难题目搜相似题参考时使用，传入查询参数\n"
+            f"  similarity → 不确定时搜相似题。query 写完整题目，subject 四选一，topic 不确定就空着\n"
             f"  image      → 题目有配图时，第一步就必须调用，传入图片路径获取描述\n"
             f"  无         → 本步纯推理，不需要调用任何工具，下一步继续推理\n"
             f"  最终答案   → 已经得到最终答案，在'思考'中写出完整答案后停止。\n"

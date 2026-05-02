@@ -17,6 +17,7 @@ Usage:
     # Parallel processing with controlled concurrency
     python solve_dataset.py --input data/dev/dev.json --output results.json --max-concurrent 5
     python solve_dataset.py --input 验证集/电路原理题集.json --output results.json --max-concurrent 1
+    python solve_dataset.py --input 验证集/testimage.json --output results.json --max-concurrent 1   
 """
 
 from __future__ import annotations

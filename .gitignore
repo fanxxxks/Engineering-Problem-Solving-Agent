@@ -40,7 +40,7 @@ solve_dataset_*.txt
 # Temporary scripts
 benchmark.py
 count_questions.py
-fix_json.py
+/fix_json.py
 run_calculus_test.py
 test_*.py
 scripts/test_*.py
@@ -55,3 +55,13 @@ data/dev/*.json
 !data/dev/dev.json
 !data/dev/hard_test.json
 local_models/
+
+# Creator
+creator/mimo.txt
+creator/original/
+creator/__pycache__/
+
+# Large data files (broken JSON, too big)
+data/al.json
+data/calculus.json
+data/ph.json

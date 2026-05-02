@@ -52,7 +52,7 @@ class KimiClient:
             base_url=base_url or os.getenv("KIMI_BASE_URL", ""),
             model=model or os.getenv("KIMI_MODEL", "kimi"),
             request_timeout_seconds=_to_float(
-                request_timeout_seconds or os.getenv("REQUEST_TIMEOUT_SECONDS", "30")
+                request_timeout_seconds or os.getenv("REQUEST_TIMEOUT_SECONDS", "300")
             ),
             max_retry=_to_int(max_retry or os.getenv("MAX_RETRY", "1")),
             temperature=_to_float(temperature or os.getenv("KIMI_TEMPERATURE", "1.0")),
@@ -62,10 +62,17 @@ class KimiClient:
         if not base.endswith("/v1"):
             base += "/v1"
 
+        import httpx
+
         self._client = OpenAI(
             api_key=self.config.api_key,
             base_url=base,
-            timeout=self.config.request_timeout_seconds,
+            timeout=httpx.Timeout(
+                connect=30.0,
+                read=self.config.request_timeout_seconds,
+                write=60.0,
+                pool=10.0,
+            ),
             max_retries=self.config.max_retry,
         )
 
@@ -77,25 +84,48 @@ class KimiClient:
         temp = temperature if temperature is not None else self.config.temperature
         log_llm_request(messages, model=self.config.model, temperature=temp)
 
+        timeout = self.config.request_timeout_seconds
+        collected_content: list[str] = []
+        collected_reasoning: list[str] = []
+
         try:
-            response = self._client.chat.completions.create(
+            stream = self._client.chat.completions.create(
                 model=self.config.model,
                 messages=messages,
                 temperature=temp,
+                stream=True,
+                stream_options={"include_usage": True},
+                timeout=timeout,
             )
+            for chunk in stream:
+                if chunk.choices:
+                    delta = chunk.choices[0].delta
+                    if delta.content:
+                        collected_content.append(delta.content)
+                    # Capture reasoning/thinking tokens
+                    reasoning = _extract_reasoning_delta(delta)
+                    if reasoning:
+                        collected_reasoning.append(reasoning)
+                    if chunk.choices[0].finish_reason:
+                        finish_reason = chunk.choices[0].finish_reason
         except Exception as exc:
+            # If we collected partial content, return it instead of raising
+            if collected_content:
+                partial = "".join(collected_content).strip()
+                if partial:
+                    log_llm_error(exc, 1, self.config.max_retry + 1)
+                    print(f"  [WARN] Response truncated (timeout/error), returning partial content ({len(partial)} chars)")
+                    result = json.dumps(partial, ensure_ascii=False) if isinstance(partial, (dict, list)) else str(partial)
+                    log_llm_response(result)
+                    return result
             log_llm_error(exc, 1, self.config.max_retry + 1)
             raise
 
-        choice = response.choices[0]
-        content = choice.message.content
+        content = "".join(collected_content).strip()
+        if collected_reasoning:
+            log_llm_thinking("".join(collected_reasoning))
 
-        # Extract and log thinking/reasoning if present
-        reasoning = _extract_reasoning(choice)
-        if reasoning:
-            log_llm_thinking(reasoning)
-
-        if not content or not str(content).strip():
+        if not content:
             raise ValueError("empty response content")
 
         result = json.dumps(content, ensure_ascii=False) if isinstance(content, (dict, list)) else str(content)
@@ -149,6 +179,25 @@ class KimiClient:
 # ------------------------------------------------------------------
 # Helpers
 # ------------------------------------------------------------------
+
+def _extract_reasoning_delta(delta: Any) -> str | None:
+    """Extract reasoning tokens from a streaming delta chunk."""
+    candidates = [
+        getattr(delta, "reasoning_content", None),
+        getattr(delta, "reasoning", None),
+        getattr(delta, "thinking", None),
+    ]
+    extra = getattr(delta, "model_extra", None)
+    if isinstance(extra, dict):
+        for key in ("reasoning_content", "reasoning", "thinking", "cot"):
+            val = extra.get(key)
+            if val:
+                candidates.append(val)
+    for c in candidates:
+        if c and str(c).strip():
+            return str(c)
+    return None
+
 
 def _extract_reasoning(choice: Any) -> str | None:
     """Extract model thinking/reasoning from a chat completion choice.
