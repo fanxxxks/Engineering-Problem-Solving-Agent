@@ -89,12 +89,14 @@ def _load_mimo_config() -> dict[str, str]:
 
 
 def _build_client() -> OpenAI:
+    import httpx
     cfg = _load_mimo_config()
     return OpenAI(
         api_key=cfg.get("api_key", ""),
         base_url=cfg.get("base_url", ""),
         timeout=180.0,
         max_retries=2,
+        http_client=httpx.Client(verify=False),
     )
 
 

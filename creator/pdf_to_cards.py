@@ -38,9 +38,20 @@ PAGES_PER_BATCH = 4          # pages per Mimo call (multimodal)
 MAX_WORKERS = 4              # parallel PDFs
 JPEG_QUALITY = 50
 MAX_IMAGE_WIDTH = 1024
+SPLIT_PDFS = {               # PDFs where each page = book spread → split L/R
+    "2",          # ← add your PDF filename (without .pdf) here
+}
 
-_EXISTING_IDS: set[str] = set()
+_EXISTING_HASHES: set[str] = set()
 write_lock = Lock()
+
+
+def _question_hash(question_text: str) -> str:
+    """Normalize and hash question text for dedup."""
+    import hashlib
+    # Normalize: trim, lowercase, collapse whitespace
+    norm = " ".join(str(question_text)[:300].lower().split())
+    return hashlib.sha256(norm.encode()).hexdigest()[:16]
 stats_lock = Lock()
 _stats = {"extracted": 0, "failed": 0}
 
@@ -61,32 +72,50 @@ def _load_mimo_config() -> dict[str, str]:
 
 def _build_client() -> OpenAI:
     cfg = _load_mimo_config()
-    return OpenAI(api_key=cfg["api_key"], base_url=cfg["base_url"], timeout=300.0, max_retries=2)
+    import httpx
+    return OpenAI(api_key=cfg["api_key"], base_url=cfg["base_url"], timeout=300.0, max_retries=2,
+                  http_client=httpx.Client(verify=False))
 
 
 # ── PDF → images ──────────────────────────────────────────────────────────
 
-def _render_pages(pdf_path: Path) -> list[bytes]:
-    """Render each page of a PDF to a compressed JPEG byte string."""
+def _render_pages(pdf_path: Path, split_pages: bool = False) -> list[bytes]:
+    """Render each page of a PDF to a compressed JPEG byte string.
+
+    If split_pages is True, each page is split into left and right halves
+    (for PDFs where each page is a book spread).
+    """
     import fitz  # pymupdf
+    from PIL import Image
 
     pages: list[bytes] = []
     doc = fitz.open(str(pdf_path))
     for page_num in range(len(doc)):
         page = doc[page_num]
-        # Render at 150 DPI (good enough for reading math)
         mat = fitz.Matrix(150 / 72, 150 / 72)
         pix = page.get_pixmap(matrix=mat)
-        # Convert to PIL for compression
-        from PIL import Image
-
         img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
         w, h = img.size
-        if w > MAX_IMAGE_WIDTH:
-            img = img.resize((MAX_IMAGE_WIDTH, int(h * MAX_IMAGE_WIDTH / w)), Image.LANCZOS)
-        buf = BytesIO()
-        img.save(buf, format="JPEG", quality=JPEG_QUALITY)
-        pages.append(buf.getvalue())
+
+        if split_pages:
+            # Split into left and right halves
+            mid = w // 2
+            for _label, (x0, x1) in (("L", (0, mid)), ("R", (mid, w))):
+                half_img = img.crop((x0, 0, x1, h))
+                hw, hh = half_img.size
+                if hw > MAX_IMAGE_WIDTH:
+                    half_img = half_img.resize(
+                        (MAX_IMAGE_WIDTH, int(hh * MAX_IMAGE_WIDTH / hw)), Image.LANCZOS
+                    )
+                buf = BytesIO()
+                half_img.save(buf, format="JPEG", quality=JPEG_QUALITY)
+                pages.append(buf.getvalue())
+        else:
+            if w > MAX_IMAGE_WIDTH:
+                img = img.resize((MAX_IMAGE_WIDTH, int(h * MAX_IMAGE_WIDTH / w)), Image.LANCZOS)
+            buf = BytesIO()
+            img.save(buf, format="JPEG", quality=JPEG_QUALITY)
+            pages.append(buf.getvalue())
     doc.close()
     return pages
 
@@ -219,59 +248,90 @@ def _check_cards(client: OpenAI, model: str, cards: list[dict]) -> list[dict]:
 # ── Save ───────────────────────────────────────────────────────────────────
 
 def _save_cards(cards: list[dict]) -> int:
-    """Write valid cards to JSONL. Returns count of newly saved."""
+    """Write valid cards to JSONL. Dedup by question_id AND question text hash."""
     saved = 0
     with write_lock:
         with OUTPUT_FILE.open("a", encoding="utf-8") as f:
             for card in cards:
-                qid = card.get("question_id", "")
-                if not qid or qid in _EXISTING_IDS:
-                    continue
                 required = ["subject", "question", "reasoning_process", "answer"]
                 if not all(card.get(k) for k in required):
+                    continue
+                qhash = _question_hash(card.get("question", ""))
+                if qhash in _EXISTING_HASHES:
                     continue
                 card.setdefault("topic", "general")
                 card.setdefault("tags", [])
                 f.write(json.dumps(card, ensure_ascii=False) + "\n")
                 f.flush()
-                _EXISTING_IDS.add(qid)
+                _EXISTING_HASHES.add(qhash)
                 saved += 1
     return saved
 
 
 # ── Per-PDF pipeline ──────────────────────────────────────────────────────
 
-def _process_pdf(pdf_path: Path, client: OpenAI, model: str) -> tuple[str, int, int]:
-    """Full pipeline for one PDF: render → extract → check → save."""
+def _process_batch(name: str, batch_idx: int, pages_b64: list[str],
+                   total_pages: int, total_batches: int, model: str) -> tuple[int, int]:
+    """Process a single page batch: extract → check → save."""
+    client = _build_client()
+    start_page = batch_idx * PAGES_PER_BATCH + 1
+    end_page = min((batch_idx + 1) * PAGES_PER_BATCH, total_pages)
+    page_range = f"{start_page}-{end_page}"
+
+    print(f"  [{name}] Batch {batch_idx+1}/{total_batches} (pages {page_range}/{total_pages}) → extracting...")
+    cards = _extract_cards(client, model, pages_b64, name)
+    if not cards:
+        return 0, 0
+
+    print(f"  [{name}] Batch {batch_idx+1}/{total_batches} → checking {len(cards)} cards...")
+    checked = _check_cards(client, model, cards)
+    saved = _save_cards(checked)
+    print(f"  [{name}] Batch {batch_idx+1}/{total_batches} → {len(checked)} cards, {saved} new")
+    return len(checked), saved
+
+
+def _process_pdf(pdf_path: Path, model: str, pdf_workers: int,
+                 split_pages: bool = False) -> tuple[str, int, int]:
+    """Full pipeline for one PDF: render → parallel batch extract → check → save."""
     name = pdf_path.stem
-    print(f"  [{name}] Rendering pages...")
+    print(f"  [{name}] Rendering pages{' (split left/right)' if split_pages else ''}...")
     try:
-        pages = _render_pages(pdf_path)
+        pages = _render_pages(pdf_path, split_pages=split_pages)
     except Exception as exc:
         print(f"  [{name}] Render FAILED: {exc}")
-        return name, 0, len(pages) if "pages" in dir() else 0
+        return name, 0, 0
 
+    # Build all batches upfront
+    batches = []
+    for batch_idx in range(0, len(pages), PAGES_PER_BATCH):
+        batch = pages[batch_idx : batch_idx + PAGES_PER_BATCH]
+        batches.append(_pages_to_b64(batch))
+
+    total_pages = len(pages)
+    total_batches = len(batches)
     total_extracted = 0
     total_saved = 0
 
-    # Process in batches
-    for batch_idx in range(0, len(pages), PAGES_PER_BATCH):
-        batch = pages[batch_idx : batch_idx + PAGES_PER_BATCH]
-        batch_b64 = _pages_to_b64(batch)
-        page_range = f"{batch_idx + 1}-{min(batch_idx + PAGES_PER_BATCH, len(pages))}"
-
-        print(f"  [{name}] Pages {page_range}/{len(pages)} → extracting...")
-        cards = _extract_cards(client, model, batch_b64, name)
-        if not cards:
-            continue
-
-        print(f"  [{name}] Pages {page_range} → checking {len(cards)} cards...")
-        checked = _check_cards(client, model, cards)
-
-        saved = _save_cards(checked)
-        total_extracted += len(checked)
-        total_saved += saved
-        print(f"  [{name}] Pages {page_range} → {len(checked)} cards, {saved} new")
+    if pdf_workers <= 1 or total_batches <= 1:
+        # Sequential processing
+        for i, b64 in enumerate(batches):
+            extracted, saved = _process_batch(name, i, b64, total_pages, total_batches, model)
+            total_extracted += extracted
+            total_saved += saved
+    else:
+        # Parallel batch processing within this PDF
+        with ThreadPoolExecutor(max_workers=min(pdf_workers, total_batches)) as executor:
+            futures = {}
+            for i, b64 in enumerate(batches):
+                f = executor.submit(_process_batch, name, i, b64, total_pages, total_batches, model)
+                futures[f] = i
+            for future in as_completed(futures):
+                try:
+                    extracted, saved = future.result()
+                    total_extracted += extracted
+                    total_saved += saved
+                except Exception as exc:
+                    print(f"  [{name}] Batch {futures[future]+1} FAILED: {exc}")
 
     return name, total_saved, total_extracted
 
@@ -286,19 +346,24 @@ def main() -> int:
 
     print(f"Found {len(pdfs)} PDFs\n")
 
-    # Load existing IDs
+    # Load existing hashes
     if OUTPUT_FILE.exists():
         for line in OUTPUT_FILE.read_text("utf-8").strip().split("\n"):
             if not line.strip():
                 continue
             try:
-                _EXISTING_IDS.add(json.loads(line).get("question_id", ""))
+                card = json.loads(line)
+                _EXISTING_HASHES.add(_question_hash(card.get("question", "")))
             except json.JSONDecodeError:
                 pass
-    print(f"Existing cards: {len(_EXISTING_IDS)}\n")
+    print(f"Existing cards (hashes): {len(_EXISTING_HASHES)}\n")
 
     cfg = _load_mimo_config()
     model = cfg.get("model", "mimo-v2.5-pro")
+
+    # Auto-balance: few PDFs → each PDF gets more parallel workers internally
+    pdf_workers = max(1, MAX_WORKERS // len(pdfs))
+    print(f"PDF parallelism: {len(pdfs)} PDFs × {pdf_workers} batch workers each\n")
 
     grand_saved = 0
     grand_failed = 0
@@ -306,8 +371,8 @@ def main() -> int:
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         futures = {}
         for pdf in pdfs:
-            client = _build_client()
-            futures[executor.submit(_process_pdf, pdf, client, model)] = pdf
+            do_split = pdf.stem in SPLIT_PDFS
+            futures[executor.submit(_process_pdf, pdf, model, pdf_workers, do_split)] = pdf
 
         for future in as_completed(futures):
             pdf = futures[future]
@@ -324,7 +389,7 @@ def main() -> int:
 
     print(f"\n{'='*60}")
     print(f"All done: {grand_saved} new cards, {grand_failed} failed PDFs")
-    print(f"Total knowledge base: {len(_EXISTING_IDS) + grand_saved} cards")
+    print(f"Total knowledge base: {len(_EXISTING_HASHES) + grand_saved} cards")
     return 0
 
 
