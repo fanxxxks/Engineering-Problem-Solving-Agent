@@ -1,14 +1,16 @@
 """Kimi chat client backed by the OpenAI Python SDK.
 
 Supports multimodal messages (text + image), thinking/reasoning extraction,
-and structured JSON output.
+structured JSON output, and robust stream recovery from brotli/429 errors.
 """
 
 from __future__ import annotations
 
 import json
 import os
+import random
 import re
+import time
 from dataclasses import dataclass
 from typing import Any, Iterable
 
@@ -102,24 +104,13 @@ class KimiClient:
                     delta = chunk.choices[0].delta
                     if delta.content:
                         collected_content.append(delta.content)
-                    # Capture reasoning/thinking tokens
                     reasoning = _extract_reasoning_delta(delta)
                     if reasoning:
                         collected_reasoning.append(reasoning)
                     if chunk.choices[0].finish_reason:
                         finish_reason = chunk.choices[0].finish_reason
         except Exception as exc:
-            # If we collected partial content, return it instead of raising
-            if collected_content:
-                partial = "".join(collected_content).strip()
-                if partial:
-                    log_llm_error(exc, 1, self.config.max_retry + 1)
-                    print(f"  [WARN] Response truncated (timeout/error), returning partial content ({len(partial)} chars)")
-                    result = json.dumps(partial, ensure_ascii=False) if isinstance(partial, (dict, list)) else str(partial)
-                    log_llm_response(result)
-                    return result
-            log_llm_error(exc, 1, self.config.max_retry + 1)
-            raise
+            return self._handle_stream_error(exc, messages, temp, collected_content, collected_reasoning)
 
         content = "".join(collected_content).strip()
         if collected_reasoning:
@@ -131,6 +122,67 @@ class KimiClient:
         result = json.dumps(content, ensure_ascii=False) if isinstance(content, (dict, list)) else str(content)
         log_llm_response(result)
         return result
+
+    def _handle_stream_error(
+        self,
+        exc: Exception,
+        messages: list[dict[str, Any]],
+        temperature: float,
+        collected_content: list[str],
+        collected_reasoning: list[str],
+    ) -> str:
+        """Handle stream errors gracefully: brotli corruption, 429 rate-limit, etc."""
+        exc_str = str(exc)
+        msg_lower = exc_str.lower()
+
+        # ── Partial content recovery (brotli / connection drop) ──────────
+        if collected_content:
+            partial = "".join(collected_content).strip()
+            if partial:
+                log_llm_error(exc, 1, self.config.max_retry + 1)
+                print(f"  [WARN] Stream interrupted (brotli/connection), returning partial content ({len(partial)} chars)")
+                if collected_reasoning:
+                    log_llm_thinking("".join(collected_reasoning))
+                result = json.dumps(partial, ensure_ascii=False) if isinstance(partial, (dict, list)) else str(partial)
+                log_llm_response(result)
+                return result
+
+        # ── 429 rate-limit → retry with exponential backoff + jitter ────
+        is_overloaded = ("overloaded" in msg_lower or "429" in exc_str or
+                         "rate limit" in msg_lower or "too many requests" in msg_lower)
+
+        max_retries = max(self.config.max_retry, 2)
+        for attempt in range(max_retries):
+            delay = min(2 ** attempt + random.uniform(0, 2), 60)
+            if is_overloaded:
+                print(f"  [RATE-LIMIT] Retry {attempt + 1}/{max_retries} after {delay:.1f}s sleep")
+                time.sleep(delay)
+            else:
+                time.sleep(1.0 + random.uniform(0, 1))
+            try:
+                # Non-streaming fallback for reliability
+                response = self._client.chat.completions.create(
+                    model=self.config.model,
+                    messages=messages,
+                    temperature=temperature,
+                    stream=False,
+                    timeout=self.config.request_timeout_seconds,
+                )
+                content = response.choices[0].message.content or ""
+                reasoning = _extract_reasoning(response.choices[0])
+                if reasoning:
+                    log_llm_thinking(reasoning)
+                if not content.strip():
+                    raise ValueError("empty response content after retry")
+                result = json.dumps(content, ensure_ascii=False) if isinstance(content, (dict, list)) else str(content)
+                log_llm_response(result)
+                return result
+            except Exception as retry_exc:
+                exc = retry_exc
+                log_llm_error(exc, attempt + 2, max_retries + 1)
+
+        log_llm_error(exc, self.config.max_retry + 1, self.config.max_retry + 1)
+        raise exc
 
     def chat_json(
         self,

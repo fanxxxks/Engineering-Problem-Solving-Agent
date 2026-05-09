@@ -5,6 +5,12 @@ problems/questions from the local solved-examples and formula-cards
 knowledge bases. This version integrates with the LangChain vector
 retriever for semantic similarity while keeping the detailed comparison
 and scoring features.
+
+Enhanced with:
+- Robust JSON/natural-language query parsing with auto subject detection
+- Chinese + English tokenization with domain-specific keyword boosting
+- Multi-stage retrieval: FAISS coarse → Cross-Encoder fine → rule fallback
+- Result deduplication and relevance threshold filtering
 """
 
 from __future__ import annotations
@@ -12,11 +18,29 @@ from __future__ import annotations
 import json
 import math
 import re
+import time
 from pathlib import Path
 from typing import Any
 
 from eng_solver_agent.retrieval.kb_loader import KnowledgeBaseLoader
 from eng_solver_agent.retrieval.retriever import Retriever
+
+
+# Subject auto-detection keywords (extended from router)
+_SUBJECT_KEYWORDS: dict[str, set[str]] = {
+    "physics": {"力", "速度", "加速度", "质量", "能量", "动量", "牛顿", "波", "光", "电", "磁场",
+                "热", "量子", "相对论", "干涉", "衍射", "光电", "德布罗意", "角动量", "转动",
+                "force", "velocity", "acceleration", "mass", "momentum", "wave", "optics"},
+    "circuits": {"电路", "电阻", "电压", "电流", "串联", "并联", "欧姆", "KCL", "KVL",
+                 "节点", "网孔", "戴维南", "诺顿", "谐振", "运放", "三相", "暂态", "相量",
+                 "circuit", "resistor", "voltage", "current", "ohm", "op-amp", "thevenin"},
+    "linalg": {"矩阵", "行列式", "特征值", "特征向量", "秩", "逆矩阵", "线性", "方程组",
+               "消元", "matrix", "determinant", "eigen", "rank", "inverse", "gauss",
+               "向量", "基", "维数", "Cayley", "韦达", "线性相关", "线性无关", "解空间"},
+    "calculus": {"导数", "积分", "极限", "微分", "泰勒", "级数", "derivative", "integral",
+                 "limit", "series", "收敛", "一致收敛", "求导", "求积分", "求极限",
+                 "不定积分", "定积分", "收敛域", "收敛半径", "微分方程", "偏导", "梯度"},
+}
 
 
 class SimilarProblemTool:
@@ -27,6 +51,9 @@ class SimilarProblemTool:
     When available, uses the LangChain vector retriever for semantic search;
     otherwise falls back to the legacy keyword retriever.
     """
+
+    # Minimum relevance score threshold to include a result
+    _MIN_RELEVANCE_SCORE = 0.08
 
     def __init__(
         self,
@@ -40,6 +67,12 @@ class SimilarProblemTool:
         self.formula_cards_path = Path(formula_cards_path) if formula_cards_path else base_dir / "formula_cards.json"
         self.examples = self._load_examples()
         self.formula_cards = self._load_formula_cards()
+
+        # Build subject index for fast filtering
+        self._examples_by_subject: dict[str, list[dict]] = {}
+        for ex in self.examples:
+            subj = str(ex.get("subject", "")).strip().lower()
+            self._examples_by_subject.setdefault(subj, []).append(ex)
 
         # Try LangChain vector retriever first
         self._vector_retriever: Any | None = None
@@ -83,27 +116,59 @@ class SimilarProblemTool:
     # Public API
     # ------------------------------------------------------------------
 
-    def solve(self, query: str) -> str:
+    def solve(self, raw_input: Any) -> str:
         """Entry-point compatible with the generic tool interface.
 
+        Handles multiple input formats robustly:
+          - JSON string: '{"question": "...", "subject": "...", "top_k": 3}'
+          - JSON string without question key: '{"expression": "x^2", ...}'
+          - Natural language query (raw string)
+          - Dict (already parsed, from code)
+
         Args:
-            query: A JSON string or natural-language query.
-                JSON format: '{"question": "...", "subject": "...", "top_k": 3}'
+            raw_input: The raw input from the LLM (string or dict).
         """
-        try:
-            parsed = json.loads(query)
-            if isinstance(parsed, dict):
-                question = parsed.get("question", query)
-                subject = parsed.get("subject")
-                topic = parsed.get("topic")
-                top_k = parsed.get("top_k", 3)
-                return json.dumps(
-                    self.find_similar(question, subject=subject, topic=topic, top_k=top_k),
-                    ensure_ascii=False,
-                )
-        except Exception:
-            pass
-        return json.dumps(self.find_similar(query), ensure_ascii=False)
+        # Already a dict
+        if isinstance(raw_input, dict):
+            question = raw_input.get("question") or raw_input.get("query") or raw_input.get("code") or ""
+            subject = raw_input.get("subject")
+            topic = raw_input.get("topic")
+            top_k = int(raw_input.get("top_k", 3))
+            return json.dumps(
+                self.find_similar(str(question), subject=subject, topic=topic, top_k=top_k),
+                ensure_ascii=False,
+            )
+
+        # String input: try JSON first, then natural language
+        if isinstance(raw_input, str):
+            stripped = raw_input.strip()
+            # Try JSON parse
+            if stripped.startswith("{"):
+                try:
+                    parsed = json.loads(stripped)
+                    return self.solve(parsed)
+                except (json.JSONDecodeError, TypeError):
+                    pass
+
+            # Natural language: auto-detect subject from content
+            detected_subject = self._auto_detect_subject(stripped)
+            return json.dumps(
+                self.find_similar(stripped, subject=detected_subject, top_k=5),
+                ensure_ascii=False,
+            )
+
+        return json.dumps({"matched_examples": [], "matched_formulas": [], "metadata": {"error": "invalid input"}},
+                          ensure_ascii=False)
+
+    def _auto_detect_subject(self, text: str) -> str | None:
+        """Detect the likely subject from question text by keyword voting."""
+        lowered = text.lower()
+        scores = {}
+        for subj, keywords in _SUBJECT_KEYWORDS.items():
+            score = sum(1 for kw in keywords if kw.lower() in lowered)
+            scores[subj] = score
+        best = max(scores, key=scores.get)
+        return best if scores[best] >= 2 else None
 
     def find_similar(
         self,
@@ -112,38 +177,38 @@ class SimilarProblemTool:
         topic: str | None = None,
         top_k: int = 3,
     ) -> dict[str, Any]:
-        """Search for similar problems and return ranked results with scores.
-
-        Args:
-            query: The question text to search against.
-            subject: Optional subject filter (physics, circuits, linalg, calculus).
-            topic: Optional topic filter.
-            top_k: Maximum number of results to return.
-
-        Returns:
-            A dict containing matched_examples, matched_formulas, and metadata.
-        """
+        """Search for similar problems and return ranked results with scores."""
         if not query or not isinstance(query, str):
             return {"matched_examples": [], "matched_formulas": [], "metadata": {"error": "empty query"}}
 
+        # Auto-detect subject if not provided
+        if not subject:
+            subject = self._auto_detect_subject(query)
+
         # Use vector retriever if available; otherwise keyword fallback
-        # Request top_k * 2 so we have enough after filtering
-        recall_k = top_k * 2
+        recall_k = min(top_k * 3, 80)  # wider recall for better filtering
+
+        t0 = time.perf_counter()
         if self._vector_retriever is not None:
-            retrieval_result = self._vector_retriever.retrieve(
-                query, subject=subject, topic=topic, top_k=recall_k
-            )
+            try:
+                retrieval_result = self._vector_retriever.retrieve(
+                    query, subject=subject, topic=topic, top_k=recall_k
+                )
+            except Exception:
+                retrieval_result = self._keyword_retriever.retrieve(
+                    query, subject=subject, topic=topic, top_k=recall_k
+                )
         else:
             retrieval_result = self._keyword_retriever.retrieve(
                 query, subject=subject, topic=topic, top_k=recall_k
             )
 
-        # ── Stage 2: Cross-Encoder re-rank (or fallback to match_score) ──
+        # ── Stage 2: Cross-Encoder re-rank (or fallback) ──
         if self._reranker is not None and self._reranker.is_available:
             top_examples = self._reranker.rerank(
                 query,
                 retrieval_result.solved_examples,
-                text_fn=lambda c: f"{c.get('question','')} {c.get('reasoning_process','')[:300]} {c.get('answer','')}",
+                text_fn=lambda c: f"{c.get('question','')} {str(c.get('reasoning_process',''))[:300]} {str(c.get('answer',''))}",
                 top_k=top_k,
             )
             top_formulas = self._reranker.rerank(
@@ -153,32 +218,21 @@ class SimilarProblemTool:
                 top_k=top_k,
             )
         else:
-            # Fallback: embedding-cosine match_score
-            scored_examples = []
-            for example in retrieval_result.solved_examples:
-                score_detail = self.match_score(query, example)
-                if score_detail["overall_score"] > 0:
-                    scored_examples.append((score_detail["overall_score"], score_detail, example))
-            scored_examples.sort(key=lambda x: (-x[0], x[2].get("question_id", "")))
-            top_examples_raw = scored_examples[:top_k]
+            # Fallback: optimized keyword + embedding scoring
+            top_examples = self._fallback_rank_examples(
+                query, retrieval_result.solved_examples, top_k
+            )
+            top_formulas = self._fallback_rank_formulas(
+                query, retrieval_result.formula_cards, top_k
+            )
 
-            scored_formulas = []
-            for card in retrieval_result.formula_cards:
-                score_detail = self._match_formula_score(query, card)
-                if score_detail["overall_score"] > 0:
-                    scored_formulas.append((score_detail["overall_score"], score_detail, card))
-            scored_formulas.sort(key=lambda x: (-x[0], x[2].get("id", "")))
-            top_formulas_raw = scored_formulas[:top_k]
+        # Filter out results below minimum relevance threshold
+        top_examples = [ex for ex in top_examples
+                        if ex.get("relevance_score", 0) >= self._MIN_RELEVANCE_SCORE]
+        top_formulas = [fc for fc in top_formulas
+                        if fc.get("relevance_score", 0) >= self._MIN_RELEVANCE_SCORE]
 
-            # Convert to same format as reranker output
-            top_examples = [
-                {**ex, "relevance_score": score}
-                for score, _detail, ex in top_examples_raw
-            ]
-            top_formulas = [
-                {**card, "relevance_score": score}
-                for score, _detail, card in top_formulas_raw
-            ]
+        elapsed = time.perf_counter() - t0
 
         return {
             "query": query,
@@ -189,12 +243,12 @@ class SimilarProblemTool:
                     "question_id": ex.get("question_id"),
                     "subject": ex.get("subject"),
                     "topic": ex.get("topic"),
-                    "question": ex.get("question"),
-                    "answer": ex.get("answer"),
-                    "reasoning_process": ex.get("reasoning_process", "")[:200],
-                    "similarity_score": ex.get("relevance_score", 0.0),
+                    "question": str(ex.get("question", ""))[:150],
+                    "answer": str(ex.get("answer", "")),
+                    "reasoning_process": str(ex.get("reasoning_process", ""))[:200],
+                    "similarity_score": round(ex.get("relevance_score", 0.0), 4),
                 }
-                for ex in top_examples
+                for ex in top_examples[:top_k]
             ],
             "matched_formulas": [
                 {
@@ -203,17 +257,92 @@ class SimilarProblemTool:
                     "topic": card.get("topic"),
                     "formula": card.get("formula"),
                     "conditions": card.get("conditions", [])[:3],
-                    "similarity_score": card.get("relevance_score", 0.0),
+                    "similarity_score": round(card.get("relevance_score", 0.0), 4),
                 }
-                for card in top_formulas
+                for card in top_formulas[:top_k]
             ],
             "metadata": {
                 "total_examples_searched": len(self.examples),
                 "total_formulas_searched": len(self.formula_cards),
-                "matched_terms": retrieval_result.matched_terms,
+                "matched_terms": retrieval_result.matched_terms[:20],
                 "vector_search_enabled": self._vector_retriever is not None,
+                "reranker_enabled": self._reranker is not None and self._reranker.is_available,
+                "subject_detected": subject,
+                "search_time_ms": round(elapsed * 1000, 1),
             },
         }
+
+    def _fallback_rank_examples(
+        self, query: str, candidates: list[dict], top_k: int
+    ) -> list[dict]:
+        """Fast keyword-based ranking with subject-boosted Jaccard."""
+        query_tokens = set(self._tokenize(self._normalize_text(query)))
+        scored = []
+        for ex in candidates:
+            # Combined text for scoring
+            ex_text = f"{ex.get('question','')} {ex.get('topic','')} {str(ex.get('answer',''))[:100]}"
+            ex_tokens = set(self._tokenize(self._normalize_text(ex_text)))
+            if not ex_tokens:
+                continue
+            intersection = query_tokens & ex_tokens
+            union = query_tokens | ex_tokens
+            base_score = len(intersection) / len(union) if union else 0
+
+            # Subject match boost
+            subj_boost = 0.15 if str(ex.get("subject", "")).lower() in str(query).lower() else 0.0
+            # Topic match boost
+            topic_boost = 0.10 if str(ex.get("topic", "")).lower() in str(query).lower() else 0.0
+
+            score = min(1.0, base_score + subj_boost + topic_boost)
+            if score > 0:
+                scored.append((score, ex))
+
+        scored.sort(key=lambda x: -x[0])
+        result = []
+        seen_ids = set()
+        for score, ex in scored:
+            qid = ex.get("question_id", "")
+            if qid in seen_ids:
+                continue
+            seen_ids.add(qid)
+            result.append({**ex, "relevance_score": round(score, 4)})
+            if len(result) >= top_k:
+                break
+        return result
+
+    def _fallback_rank_formulas(
+        self, query: str, candidates: list[dict], top_k: int
+    ) -> list[dict]:
+        """Fast keyword-based formula card ranking."""
+        query_tokens = set(self._tokenize(self._normalize_text(query)))
+        scored = []
+        for card in candidates:
+            card_text = f"{card.get('topic','')} {card.get('formula','')} {' '.join(card.get('keywords',[]))} {' '.join(card.get('conditions',[]))}"
+            card_tokens = set(self._tokenize(self._normalize_text(card_text)))
+            if not card_tokens:
+                continue
+            intersection = query_tokens & card_tokens
+            union = query_tokens | card_tokens
+            base_score = len(intersection) / len(union) if union else 0
+            # Keyword match bonus
+            kw_match = sum(1 for kw in card.get("keywords", []) if kw.lower() in query.lower())
+            kw_bonus = min(0.3, kw_match * 0.1)
+            score = min(1.0, base_score + kw_bonus)
+            if score > 0:
+                scored.append((score, card))
+
+        scored.sort(key=lambda x: -x[0])
+        result = []
+        seen_ids = set()
+        for score, card in scored:
+            cid = card.get("id", "")
+            if cid in seen_ids:
+                continue
+            seen_ids.add(cid)
+            result.append({**card, "relevance_score": round(score, 4)})
+            if len(result) >= top_k:
+                break
+        return result
 
     def _cosine(self, a: list[float], b: list[float]) -> float:
         """Compute cosine similarity between two embedding vectors."""

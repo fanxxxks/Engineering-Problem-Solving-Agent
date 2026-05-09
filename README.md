@@ -26,6 +26,9 @@
 16. [扩展指南](#十六扩展指南)
 17. [贡献指南](#十七贡献指南)
 18. [许可证](#十八许可证)
+19. [版本更新记录](#十九版本更新记录)
+20. [验证测试报告](#二十验证测试报告)
+21. [性能瓶颈分析](#二十-性能瓶颈分析)
 
 ---
 
@@ -305,6 +308,12 @@ Worker/Checker/Orchestrator 多智能体并行系统，已被 `UnifiedAgent.asyn
 
 实现 **ReAct（Reasoning + Acting）** 推理循环。
 
+**v0.2.x 增强**：内置防无限循环机制：
+- 连续 3 步"无"操作 → 强制输出最终答案
+- 重复思考检测（80%+ 文本相似度 → 强制结束）
+- 长观察结果截断（>1200 字符自动截断，防止图片描述影响推理）
+- Markdown 加粗标记容错解析（`** 最终答案**` 正确识别为最终答案动作）
+
 **ReAct 循环**：
 ```
 初始化：构建 system prompt + 题目描述 + 可用工具列表
@@ -387,11 +396,17 @@ LLM 输出格式：
 
 #### `llm/kimi_client.py` — KimiClient
 
-基于 **Python 标准库 `urllib`** 的轻量级 LLM 客户端。
+基于 **OpenAI Python SDK** 的 LLM 客户端，支持流式响应和多模态消息。
 
 **核心能力**：
-- `chat()`：普通对话
+- `chat()`：普通对话（流式 + 非流式 fallback）
 - `chat_json()`：强制返回 JSON，支持从 Markdown 代码块提取
+
+**v0.2.x 增强**：鲁棒错误处理：
+- **brotli 解码恢复**：流中断时自动返回已收集的部分内容
+- **429 过载重试**：检测 rate-limit → 指数退避 + 随机 jitter（2^attempt + random(0,2) 秒，上限 60s）
+- **非流式 fallback**：重试时切换为非流式模式确保可靠性
+- **思考 Token 提取**：自动捕获模型的 reasoning/thinking 过程
 
 **配置方式**（优先级从高到低）：
 1. 构造函数参数
@@ -650,6 +665,13 @@ print(sp.integrate(sp.sin(x)**2, x))
 ### 5.2 `tools/similarity_tool.py` — SimilarProblemTool（相似题目查找工具）
 
 基于**语义向量检索 + 关键词匹配**的相似题目查找工具。
+
+**v0.2.x 增强**：
+- **多格式输入**：`solve()` 支持 dict / JSON string / 自然语言字符串
+- **学科自动检测**：基于 4 学科 80+ 关键词自动识别题目所属领域
+- **结果去重**：内置 question_id 去重，避免同一例题重复返回
+- **相关性阈值**：`_MIN_RELEVANCE_SCORE = 0.08` 过滤低分噪音
+- **搜索时间追踪**：`metadata.search_time_ms` 记录每次检索耗时
 
 **核心功能**：
 
@@ -1013,6 +1035,11 @@ Engineering-Problem-Solving-Agent/
 ├── scripts/                       # 脚本工具
 │   ├── mini_pytest.py             # 微型测试运行器
 │   ├── smoke_test.py              # 冒烟测试
+│   ├── smoke_test_fixes.py        # 修复验证测试 (24项) ⭐ 新增
+│   ├── validate_agent.py          # 全面验证测试套件 ⭐ 新增
+│   ├── fix_examples_db.py         # 例题库去重与分类纠正 ⭐ 新增
+│   ├── import_kb.py               # 知识库批量导入 ⭐ 新增
+│   ├── verify_kb.py               # 知识库检索验证 ⭐ 新增
 │   └── run_local_eval.py          # 本地评估入口
 │
 ├── tests/                         # 测试目录
@@ -1022,8 +1049,10 @@ Engineering-Problem-Solving-Agent/
 │   ├── test_algebra_tool.py
 │   ├── test_circuit_tool.py
 │   ├── test_physics_tool.py
-│   ├── test_langchain_retriever.py（⭐ 新增）
-│   └── test_react_engine.py       （⭐ 新增）
+│   ├── test_langchain_retriever.py
+│   ├── test_react_engine.py
+│   ├── test_fixes_regression.py    # 修复回归测试 (24项) ⭐ 新增
+│   └── ...
 │
 ├── data/                          # 数据集
 │   ├── dev/dev.json               # 开发集（20题）
@@ -1284,3 +1313,109 @@ agent = UnifiedAgent(kimi_client=YourClient())
 ## 十八、许可证
 
 MIT License
+
+## 十九、版本更新记录
+
+### v0.2.1 (2026-05-09) — 生产稳定性修复
+
+#### 🔧 修复 #1: Markdown 加粗干扰 ReAct Action 解析
+- **问题**: LLM 输出 `** 最终答案**` 时，`**` 附着在 action 字段上导致精确匹配失败
+- **修复**: 新增 `_strip_markdown_fmt()` 方法 + 放宽正则 + 对 action_input 同样去 markdown
+- **文件**: `reasoning_engine.py`
+- **测试**: 6 项单元测试 (`test_strip_markdown_fmt_*`, `test_parse_step_markdown_*`)
+
+#### 🔧 修复 #2: brotli 流解码崩溃恢复
+- **问题**: `brotli: decoder process called with data when 'can_accept_more_data()' is False`
+- **修复**: 统一 `_handle_stream_error()` — 有 partial content 直接返回，否则自动非流式 fallback 重试
+- **文件**: `llm/kimi_client.py`
+- **测试**: 2 项测试 (`test_handle_stream_error_recovers_*`)
+
+#### 🔧 修复 #3: API 429 过载重试
+- **问题**: Kimi API 高峰时段 `The engine is currently overloaded`
+- **修复**: 检测 429 → 指数退避 + jitter（2^attempt + random(0,2) 秒, 上限 60s）+ 最多 max(max_retry,2) 次非流式重试
+- **文件**: `llm/kimi_client.py`
+- **测试**: 2 项测试 (`test_handle_stream_error_429_*`)
+
+#### 📊 例题库清洗
+- **去重**: 1021 → 799 条（删除 222 条重复 `question_id` 记录）
+- **分类纠正**: 186 条错误学科分类修正（PHY_*→physics, QUAN_*→physics, LIN_ALG_*→linalg）
+- **ID 规范化**: 统一为 `{subject}-ex-{NNN}` 格式
+- **脚本**: `scripts/fix_examples_db.py`
+
+#### 🛠️ 工具增强
+- `similarity_tool.py`: 多格式输入 + 学科自动检测 + 结果去重 + 相关性阈值 + 搜索时间追踪
+- `reasoning_engine.py`: 防无限循环（3 步空转强制结束, 80% 文本重复检测, 1200 字符观察截断）
+- `UnifiedAgent`: 确认 `compute` / `similarity` / `image` 三工具注册
+
+#### 📋 验证工具
+- `scripts/validate_agent.py`: 全面验证测试套件，支持 `auto`/`react`/`tool_only` 模式 + 并行 (`--parallel`)
+- `scripts/smoke_test_fixes.py`: 修复验证冒烟测试
+- `tests/test_fixes_regression.py`: 24 项回归 + 单元测试
+
+#### 📈 性能分析
+- 详细瓶颈分析报告: `output/performance_bottleneck_report.txt`
+- 核心发现: LLM API 调用占 85% 耗时, image_tool 图片传输占 10%
+
+---
+
+## 二十、验证测试报告
+
+### 两模式对比
+
+| 指标 | `tool_only` | `auto` (LLM) | 提升 |
+|------|:-----------:|:------------:|:----:|
+| 整体正确率 | 32.5% | **70.0%** | +37.5% |
+| 基础物理学 | 20.0% | **80.0%** | +60% |
+| 微积分 | 60.0% | **80.0%** | +20% |
+| 电路原理 | 0.0% | **50.0%** | +50% |
+| 线性代数 | 50.0% | **70.0%** | +20% |
+| 总耗时 | 0.24 秒 | ~50,000 秒 | — |
+| 无错误运行率 | 100% | 100% | — |
+| 输出格式合规 | 100% | 100% | — |
+
+### 按难度正确率 (LLM模式)
+
+| 难度 | 正确率 |
+|------|:----:|
+| 简单 | 83.3% |
+| 一般 | 100.0% |
+| 中等 | 66.7% |
+| 困难 | 50.0% |
+
+### 按题型正确率 (LLM模式)
+
+| 题型 | 正确率 |
+|------|:----:|
+| 填空题 | 100.0% |
+| 证明题 | 87.5% |
+| 计算题 | 38.9% |
+| 构造题 | 100.0% |
+
+### 知识库统计
+
+| 项目 | 数量 |
+|------|:----:|
+| 公式卡片 | 58 张 (原 34 + 新增 24) |
+| 例题 | 799 条 (去重后, 4 学科) |
+| 新增电路公式 | 14 张 (戴维南/诺顿/叠加/谐振/三相等) |
+| 新增线代公式 | 10 张 (消元法/克拉默/解结构/Vandermonde等) |
+
+---
+
+## 二十、性能瓶颈分析
+
+详细报告见 `output/performance_bottleneck_report.txt`。
+
+核心发现:
+
+| 瓶颈 | 占比 | 说明 |
+|------|:---:|------|
+| **LLM API 调用** | ~85% | 每次 stream 30-90s, 单题 3-8 次串行调用 |
+| **image_tool 图片传输** | ~10% | 单张电路图 base64 + vision 处理 60-120s |
+| **API 过载/网络抖动** | ~5% | 429 overloaded, brotli 解码, timeout |
+| 本地计算 | ~0% | SymPy < 0.1s |
+
+**最高收益优化路径**:
+1. **P0**: 降低 Temperature 到 0.6-0.7 + 限制 max_tokens → 预期 -30~40% LLM 耗时
+2. **P1**: 缓存 image_tool 结果 → 电路题加速 3-5x
+3. **P2**: 简单题直走 tool_only (<1ms) → 简单题零 API 成本

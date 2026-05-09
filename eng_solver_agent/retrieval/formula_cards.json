@@ -3,306 +3,1069 @@
     "id": "physics-kinematics-1",
     "subject": "physics",
     "topic": "uniform_acceleration",
-    "keywords": ["velocity", "acceleration", "time", "kinematics"],
+    "keywords": [
+      "velocity",
+      "acceleration",
+      "time",
+      "kinematics"
+    ],
     "formula": "v = v0 + a t",
-    "conditions": ["constant acceleration", "one-dimensional motion"],
-    "common_traps": ["sign convention", "using the wrong initial velocity"]
+    "conditions": [
+      "constant acceleration",
+      "one-dimensional motion"
+    ],
+    "common_traps": [
+      "sign convention",
+      "using the wrong initial velocity"
+    ]
   },
   {
     "id": "physics-kinematics-2",
     "subject": "physics",
     "topic": "uniform_acceleration",
-    "keywords": ["displacement", "time", "kinematics"],
+    "keywords": [
+      "displacement",
+      "time",
+      "kinematics"
+    ],
     "formula": "s = v0 t + 1/2 a t^2",
-    "conditions": ["constant acceleration", "known time interval"],
-    "common_traps": ["forgetting the 1/2 factor", "mixing v and v0"]
+    "conditions": [
+      "constant acceleration",
+      "known time interval"
+    ],
+    "common_traps": [
+      "forgetting the 1/2 factor",
+      "mixing v and v0"
+    ]
   },
   {
     "id": "physics-newton-1",
     "subject": "physics",
     "topic": "newton_second_law",
-    "keywords": ["force", "mass", "acceleration", "newton"],
+    "keywords": [
+      "force",
+      "mass",
+      "acceleration",
+      "newton"
+    ],
     "formula": "F = m a",
-    "conditions": ["net force along a direction"],
-    "common_traps": ["component sign errors", "using total force instead of net force"]
+    "conditions": [
+      "net force along a direction"
+    ],
+    "common_traps": [
+      "component sign errors",
+      "using total force instead of net force"
+    ]
   },
   {
     "id": "physics-momentum-1",
     "subject": "physics",
     "topic": "momentum_impulse",
-    "keywords": ["momentum", "impulse", "force", "time"],
+    "keywords": [
+      "momentum",
+      "impulse",
+      "force",
+      "time"
+    ],
     "formula": "p = m v,  J = F Δt = Δp",
-    "conditions": ["constant force or averaged force"],
-    "common_traps": ["mixing impulse and momentum", "missing vector direction"]
+    "conditions": [
+      "constant force or averaged force"
+    ],
+    "common_traps": [
+      "mixing impulse and momentum",
+      "missing vector direction"
+    ]
   },
   {
     "id": "physics-energy-1",
     "subject": "physics",
     "topic": "work_energy",
-    "keywords": ["energy", "work", "speed", "kinetic"],
+    "keywords": [
+      "energy",
+      "work",
+      "speed",
+      "kinetic"
+    ],
     "formula": "W = ΔK = 1/2 m (v^2 - v0^2)",
-    "conditions": ["work-energy relation applies"],
-    "common_traps": ["using velocity difference instead of squared difference"]
+    "conditions": [
+      "work-energy relation applies"
+    ],
+    "common_traps": [
+      "using velocity difference instead of squared difference"
+    ]
   },
   {
     "id": "physics-energy-2",
     "subject": "physics",
     "topic": "power",
-    "keywords": ["power", "work", "time"],
+    "keywords": [
+      "power",
+      "work",
+      "time"
+    ],
     "formula": "P = W / t",
-    "conditions": ["average power"],
-    "common_traps": ["using instantaneous power formula when not needed"]
+    "conditions": [
+      "average power"
+    ],
+    "common_traps": [
+      "using instantaneous power formula when not needed"
+    ]
   },
   {
     "id": "physics-circular-1",
     "subject": "physics",
     "topic": "circular_motion",
-    "keywords": ["circular", "centripetal", "velocity", "radius"],
+    "keywords": [
+      "circular",
+      "centripetal",
+      "velocity",
+      "radius"
+    ],
     "formula": "a_c = v^2 / r",
-    "conditions": ["uniform circular motion"],
-    "common_traps": ["confusing tangential and centripetal acceleration"]
+    "conditions": [
+      "uniform circular motion"
+    ],
+    "common_traps": [
+      "confusing tangential and centripetal acceleration"
+    ]
   },
   {
     "id": "physics-units-1",
     "subject": "physics",
     "topic": "unit_consistency",
-    "keywords": ["unit", "dimension", "force", "energy"],
+    "keywords": [
+      "unit",
+      "dimension",
+      "force",
+      "energy"
+    ],
     "formula": "Check SI dimensions before solving",
-    "conditions": ["always applicable"],
-    "common_traps": ["mismatched units", "mixing N and J"]
+    "conditions": [
+      "always applicable"
+    ],
+    "common_traps": [
+      "mismatched units",
+      "mixing N and J"
+    ]
   },
   {
     "id": "circuits-series-1",
     "subject": "circuits",
     "topic": "equivalent_resistance",
-    "keywords": ["series", "resistor", "resistance"],
+    "keywords": [
+      "series",
+      "resistor",
+      "resistance"
+    ],
     "formula": "R_eq = R1 + R2 + ...",
-    "conditions": ["resistors in series"],
-    "common_traps": ["adding parallel branches as if they were series"]
+    "conditions": [
+      "resistors in series"
+    ],
+    "common_traps": [
+      "adding parallel branches as if they were series"
+    ]
   },
   {
     "id": "circuits-parallel-1",
     "subject": "circuits",
     "topic": "equivalent_resistance",
-    "keywords": ["parallel", "resistor", "resistance"],
+    "keywords": [
+      "parallel",
+      "resistor",
+      "resistance"
+    ],
     "formula": "1 / R_eq = 1 / R1 + 1 / R2 + ...",
-    "conditions": ["resistors in parallel"],
-    "common_traps": ["adding resistances directly"]
+    "conditions": [
+      "resistors in parallel"
+    ],
+    "common_traps": [
+      "adding resistances directly"
+    ]
   },
   {
     "id": "circuits-kcl-1",
     "subject": "circuits",
     "topic": "node_analysis",
-    "keywords": ["node", "kcl", "current"],
+    "keywords": [
+      "node",
+      "kcl",
+      "current"
+    ],
     "formula": "sum of currents leaving a node = 0",
-    "conditions": ["nodal analysis"],
-    "common_traps": ["wrong current direction", "missing ground reference"]
+    "conditions": [
+      "nodal analysis"
+    ],
+    "common_traps": [
+      "wrong current direction",
+      "missing ground reference"
+    ]
   },
   {
     "id": "circuits-kvl-1",
     "subject": "circuits",
     "topic": "mesh_analysis",
-    "keywords": ["mesh", "kvl", "voltage"],
+    "keywords": [
+      "mesh",
+      "kvl",
+      "voltage"
+    ],
     "formula": "sum of voltage drops around a loop = 0",
-    "conditions": ["mesh analysis"],
-    "common_traps": ["incorrect loop orientation", "shared branch sign errors"]
+    "conditions": [
+      "mesh analysis"
+    ],
+    "common_traps": [
+      "incorrect loop orientation",
+      "shared branch sign errors"
+    ]
   },
   {
     "id": "circuits-rc-1",
     "subject": "circuits",
     "topic": "first_order_response",
-    "keywords": ["rc", "capacitor", "time constant"],
+    "keywords": [
+      "rc",
+      "capacitor",
+      "time constant"
+    ],
     "formula": "tau = RC",
-    "conditions": ["first-order RC transient"],
-    "common_traps": ["using steady-state formula at transient time"]
+    "conditions": [
+      "first-order RC transient"
+    ],
+    "common_traps": [
+      "using steady-state formula at transient time"
+    ]
   },
   {
     "id": "circuits-rl-1",
     "subject": "circuits",
     "topic": "first_order_response",
-    "keywords": ["rl", "inductor", "time constant"],
+    "keywords": [
+      "rl",
+      "inductor",
+      "time constant"
+    ],
     "formula": "tau = L / R",
-    "conditions": ["first-order RL transient"],
-    "common_traps": ["wrong initial condition"]
+    "conditions": [
+      "first-order RL transient"
+    ],
+    "common_traps": [
+      "wrong initial condition"
+    ]
   },
   {
     "id": "circuits-ohm-1",
     "subject": "circuits",
     "topic": "ohms_law",
-    "keywords": ["voltage", "current", "resistance"],
+    "keywords": [
+      "voltage",
+      "current",
+      "resistance"
+    ],
     "formula": "V = I R",
-    "conditions": ["ohmic element"],
-    "common_traps": ["mixing source voltage with branch voltage"]
+    "conditions": [
+      "ohmic element"
+    ],
+    "common_traps": [
+      "mixing source voltage with branch voltage"
+    ]
   },
   {
     "id": "circuits-power-1",
     "subject": "circuits",
     "topic": "power",
-    "keywords": ["power", "voltage", "current"],
+    "keywords": [
+      "power",
+      "voltage",
+      "current"
+    ],
     "formula": "P = V I = I^2 R = V^2 / R",
-    "conditions": ["single resistor or element power"],
-    "common_traps": ["using the wrong resistance branch"]
+    "conditions": [
+      "single resistor or element power"
+    ],
+    "common_traps": [
+      "using the wrong resistance branch"
+    ]
   },
   {
     "id": "circuits-divider-1",
     "subject": "circuits",
     "topic": "voltage_divider",
-    "keywords": ["divider", "voltage", "resistor"],
+    "keywords": [
+      "divider",
+      "voltage",
+      "resistor"
+    ],
     "formula": "Vout = Vin * R2 / (R1 + R2)",
-    "conditions": ["two-resistor divider"],
-    "common_traps": ["reversing numerator and denominator"]
+    "conditions": [
+      "two-resistor divider"
+    ],
+    "common_traps": [
+      "reversing numerator and denominator"
+    ]
   },
   {
     "id": "linalg-det-1",
     "subject": "linalg",
     "topic": "determinant",
-    "keywords": ["determinant", "2x2", "matrix"],
+    "keywords": [
+      "determinant",
+      "2x2",
+      "matrix"
+    ],
     "formula": "det([[a,b],[c,d]]) = ad - bc",
-    "conditions": ["2x2 matrix"],
-    "common_traps": ["swapping rows without sign change"]
+    "conditions": [
+      "2x2 matrix"
+    ],
+    "common_traps": [
+      "swapping rows without sign change"
+    ]
   },
   {
     "id": "linalg-det-2",
     "subject": "linalg",
     "topic": "determinant",
-    "keywords": ["determinant", "3x3", "matrix"],
+    "keywords": [
+      "determinant",
+      "3x3",
+      "matrix"
+    ],
     "formula": "cofactor expansion or row reduction",
-    "conditions": ["square matrix"],
-    "common_traps": ["sign pattern errors"]
+    "conditions": [
+      "square matrix"
+    ],
+    "common_traps": [
+      "sign pattern errors"
+    ]
   },
   {
     "id": "linalg-inverse-1",
     "subject": "linalg",
     "topic": "inverse",
-    "keywords": ["inverse", "2x2", "matrix"],
+    "keywords": [
+      "inverse",
+      "2x2",
+      "matrix"
+    ],
     "formula": "A^-1 = 1/det(A) * [[d,-b],[-c,a]]",
-    "conditions": ["det(A) != 0"],
-    "common_traps": ["inverting singular matrices"]
+    "conditions": [
+      "det(A) != 0"
+    ],
+    "common_traps": [
+      "inverting singular matrices"
+    ]
   },
   {
     "id": "linalg-rank-1",
     "subject": "linalg",
     "topic": "rank",
-    "keywords": ["rank", "row reduction", "matrix"],
+    "keywords": [
+      "rank",
+      "row reduction",
+      "matrix"
+    ],
     "formula": "rank = number of pivots",
-    "conditions": ["row echelon form"],
-    "common_traps": ["counting zero rows as pivots"]
+    "conditions": [
+      "row echelon form"
+    ],
+    "common_traps": [
+      "counting zero rows as pivots"
+    ]
   },
   {
     "id": "linalg-eigen-1",
     "subject": "linalg",
     "topic": "eigenvalues",
-    "keywords": ["eigen", "eigenvalue", "characteristic"],
+    "keywords": [
+      "eigen",
+      "eigenvalue",
+      "characteristic"
+    ],
     "formula": "det(A - λI) = 0",
-    "conditions": ["square matrix"],
-    "common_traps": ["forgetting multiplicity"]
+    "conditions": [
+      "square matrix"
+    ],
+    "common_traps": [
+      "forgetting multiplicity"
+    ]
   },
   {
     "id": "linalg-eigen-2",
     "subject": "linalg",
     "topic": "eigenvectors",
-    "keywords": ["eigenvector", "nullspace", "eigen"],
+    "keywords": [
+      "eigenvector",
+      "nullspace",
+      "eigen"
+    ],
     "formula": "(A - λI)v = 0",
-    "conditions": ["given an eigenvalue"],
-    "common_traps": ["using the wrong λ"]
+    "conditions": [
+      "given an eigenvalue"
+    ],
+    "common_traps": [
+      "using the wrong λ"
+    ]
   },
   {
     "id": "linalg-system-1",
     "subject": "linalg",
     "topic": "linear_system",
-    "keywords": ["system", "linear equations", "matrix"],
+    "keywords": [
+      "system",
+      "linear equations",
+      "matrix"
+    ],
     "formula": "Ax = b",
-    "conditions": ["consistent linear system"],
-    "common_traps": ["dimension mismatch"]
+    "conditions": [
+      "consistent linear system"
+    ],
+    "common_traps": [
+      "dimension mismatch"
+    ]
   },
   {
     "id": "linalg-trace-1",
     "subject": "linalg",
     "topic": "trace",
-    "keywords": ["trace", "diagonal", "matrix"],
+    "keywords": [
+      "trace",
+      "diagonal",
+      "matrix"
+    ],
     "formula": "tr(A) = sum of diagonal entries",
-    "conditions": ["square matrix"],
-    "common_traps": ["using off-diagonal terms"]
+    "conditions": [
+      "square matrix"
+    ],
+    "common_traps": [
+      "using off-diagonal terms"
+    ]
   },
   {
     "id": "calculus-diff-1",
     "subject": "calculus",
     "topic": "derivative",
-    "keywords": ["derivative", "power rule", "x^2"],
+    "keywords": [
+      "derivative",
+      "power rule",
+      "x^2"
+    ],
     "formula": "d/dx x^n = n x^(n-1)",
-    "conditions": ["polynomial powers"],
-    "common_traps": ["forgetting the exponent drops by one"]
+    "conditions": [
+      "polynomial powers"
+    ],
+    "common_traps": [
+      "forgetting the exponent drops by one"
+    ]
   },
   {
     "id": "calculus-diff-2",
     "subject": "calculus",
     "topic": "chain_rule",
-    "keywords": ["derivative", "chain rule", "composition"],
+    "keywords": [
+      "derivative",
+      "chain rule",
+      "composition"
+    ],
     "formula": "d/dx f(g(x)) = f'(g(x)) g'(x)",
-    "conditions": ["composite functions"],
-    "common_traps": ["missing the outer derivative"]
+    "conditions": [
+      "composite functions"
+    ],
+    "common_traps": [
+      "missing the outer derivative"
+    ]
   },
   {
     "id": "calculus-integral-1",
     "subject": "calculus",
     "topic": "integration",
-    "keywords": ["integral", "power rule", "x^2"],
+    "keywords": [
+      "integral",
+      "power rule",
+      "x^2"
+    ],
     "formula": "∫ x^n dx = x^(n+1)/(n+1) + C",
-    "conditions": ["n != -1"],
-    "common_traps": ["forgetting the constant of integration"]
+    "conditions": [
+      "n != -1"
+    ],
+    "common_traps": [
+      "forgetting the constant of integration"
+    ]
   },
   {
     "id": "calculus-integral-2",
     "subject": "calculus",
     "topic": "definite_integral",
-    "keywords": ["integral", "from", "to", "bounds"],
+    "keywords": [
+      "integral",
+      "from",
+      "to",
+      "bounds"
+    ],
     "formula": "∫_a^b f(x) dx = F(b) - F(a)",
-    "conditions": ["F is antiderivative of f"],
-    "common_traps": ["swapping upper and lower bounds"]
+    "conditions": [
+      "F is antiderivative of f"
+    ],
+    "common_traps": [
+      "swapping upper and lower bounds"
+    ]
   },
   {
     "id": "calculus-limit-1",
     "subject": "calculus",
     "topic": "limit",
-    "keywords": ["limit", "x ->", "substitution"],
+    "keywords": [
+      "limit",
+      "x ->",
+      "substitution"
+    ],
     "formula": "If continuous, lim x→a f(x) = f(a)",
-    "conditions": ["continuity at the point"],
-    "common_traps": ["direct substitution on discontinuous forms"]
+    "conditions": [
+      "continuity at the point"
+    ],
+    "common_traps": [
+      "direct substitution on discontinuous forms"
+    ]
   },
   {
     "id": "calculus-limit-2",
     "subject": "calculus",
     "topic": "limit",
-    "keywords": ["limit", "rational", "factor"],
+    "keywords": [
+      "limit",
+      "rational",
+      "factor"
+    ],
     "formula": "factor or rationalize to remove indeterminate forms",
-    "conditions": ["indeterminate forms"],
-    "common_traps": ["cancelling invalid terms"]
+    "conditions": [
+      "indeterminate forms"
+    ],
+    "common_traps": [
+      "cancelling invalid terms"
+    ]
   },
   {
     "id": "calculus-critical-1",
     "subject": "calculus",
     "topic": "critical_points",
-    "keywords": ["critical", "derivative", "extrema"],
+    "keywords": [
+      "critical",
+      "derivative",
+      "extrema"
+    ],
     "formula": "critical points satisfy f'(x)=0 or undefined",
-    "conditions": ["interior points of the domain"],
-    "common_traps": ["forgetting undefined derivative cases"]
+    "conditions": [
+      "interior points of the domain"
+    ],
+    "common_traps": [
+      "forgetting undefined derivative cases"
+    ]
   },
   {
     "id": "calculus-taylor-1",
     "subject": "calculus",
     "topic": "taylor_series",
-    "keywords": ["taylor", "series", "expansion"],
+    "keywords": [
+      "taylor",
+      "series",
+      "expansion"
+    ],
     "formula": "f(x)=Σ f^(n)(a)/n! (x-a)^n",
-    "conditions": ["smooth function near expansion point"],
-    "common_traps": ["wrong expansion center"]
+    "conditions": [
+      "smooth function near expansion point"
+    ],
+    "common_traps": [
+      "wrong expansion center"
+    ]
   },
   {
     "id": "calculus-ftc-1",
     "subject": "calculus",
     "topic": "fundamental_theorem",
-    "keywords": ["fundamental theorem", "integral", "derivative"],
+    "keywords": [
+      "fundamental theorem",
+      "integral",
+      "derivative"
+    ],
     "formula": "d/dx ∫_a^x f(t) dt = f(x)",
-    "conditions": ["integrand is well-defined"],
-    "common_traps": ["mixing the integration variable"]
+    "conditions": [
+      "integrand is well-defined"
+    ],
+    "common_traps": [
+      "mixing the integration variable"
+    ]
+  },
+  {
+    "id": "circuits-source-transform-1",
+    "subject": "circuits",
+    "topic": "source_transformation",
+    "keywords": [
+      "source transformation",
+      "thevenin",
+      "norton",
+      "equivalent",
+      "电源等效变换"
+    ],
+    "formula": "Vs = Is * R,  R_thevenin = R_norton",
+    "conditions": [
+      "voltage source in series with R",
+      "current source in parallel with same R"
+    ],
+    "common_traps": [
+      "direction of current source must match voltage polarity",
+      "dependent sources cannot be transformed independently"
+    ]
+  },
+  {
+    "id": "circuits-superposition-1",
+    "subject": "circuits",
+    "topic": "superposition",
+    "keywords": [
+      "superposition",
+      "linear",
+      "independent source",
+      "叠加定理"
+    ],
+    "formula": "Total response = sum of responses to each independent source acting alone",
+    "conditions": [
+      "linear circuit",
+      "deactivate other sources: V→short, I→open"
+    ],
+    "common_traps": [
+      "dependent sources must remain active",
+      "power cannot be superposed (nonlinear)"
+    ]
+  },
+  {
+    "id": "circuits-thevenin-1",
+    "subject": "circuits",
+    "topic": "thevenin",
+    "keywords": [
+      "thevenin",
+      "equivalent",
+      "open circuit",
+      "戴维南"
+    ],
+    "formula": "V_th = V_oc (open-circuit voltage), R_th = R_eq (with sources killed)",
+    "conditions": [
+      "linear two-terminal network"
+    ],
+    "common_traps": [
+      "keeping independent sources active when computing R_th",
+      "dependent source requires test-source method"
+    ]
+  },
+  {
+    "id": "circuits-norton-1",
+    "subject": "circuits",
+    "topic": "norton",
+    "keywords": [
+      "norton",
+      "equivalent",
+      "short circuit",
+      "诺顿"
+    ],
+    "formula": "I_n = I_sc (short-circuit current), R_n = R_th",
+    "conditions": [
+      "linear two-terminal network"
+    ],
+    "common_traps": [
+      "confusing Norton R with load R",
+      "I_n and V_th share same R_eq"
+    ]
+  },
+  {
+    "id": "circuits-max-power-1",
+    "subject": "circuits",
+    "topic": "maximum_power_transfer",
+    "keywords": [
+      "maximum power",
+      "load",
+      "thevenin",
+      "最大功率"
+    ],
+    "formula": "P_max = V_th^2 / (4 * R_th),  when R_L = R_th",
+    "conditions": [
+      "RL adjustable",
+      "Thevenin equivalent known"
+    ],
+    "common_traps": [
+      "applying to non-adjustable load",
+      "using wrong R_th (not including RL)"
+    ]
+  },
+  {
+    "id": "circuits-ydelta-1",
+    "subject": "circuits",
+    "topic": "y_delta_transform",
+    "keywords": [
+      "Y-Δ",
+      "star-delta",
+      "wye-delta",
+      "transform",
+      "星三角"
+    ],
+    "formula": "Δ→Y: R1 = (R12*R31) / (R12+R23+R31)",
+    "conditions": [
+      "three-terminal resistive network"
+    ],
+    "common_traps": [
+      "wrong terminal labeling",
+      "applying to non-resistive elements indiscriminately"
+    ]
+  },
+  {
+    "id": "circuits-current-divider-1",
+    "subject": "circuits",
+    "topic": "current_divider",
+    "keywords": [
+      "current divider",
+      "parallel",
+      "分流"
+    ],
+    "formula": "I_k = (G_k / (G_1+...+G_n)) * I_total,  where G = 1/R",
+    "conditions": [
+      "resistors in parallel"
+    ],
+    "common_traps": [
+      "using R directly instead of conductance G",
+      "wrong branch identification"
+    ]
+  },
+  {
+    "id": "circuits-opamp-1",
+    "subject": "circuits",
+    "topic": "opamp_ideal",
+    "keywords": [
+      "op-amp",
+      "virtual short",
+      "virtual ground",
+      "ideal",
+      "运放",
+      "虚短",
+      "虚断"
+    ],
+    "formula": "V+ = V- (virtual short),  I+ = I- = 0 (virtual open)",
+    "conditions": [
+      "ideal op-amp",
+      "negative feedback",
+      "linear region"
+    ],
+    "common_traps": [
+      "applying virtual short without negative feedback",
+      "ignoring saturation limits"
+    ]
+  },
+  {
+    "id": "circuits-mutual-inductance-1",
+    "subject": "circuits",
+    "topic": "coupled_inductor",
+    "keywords": [
+      "mutual inductance",
+      "coupling",
+      "互感",
+      "耦合电感"
+    ],
+    "formula": "V1 = L1*di1/dt ± M*di2/dt,  V2 = ±M*di1/dt + L2*di2/dt,  M = k*sqrt(L1*L2), 0≤k≤1",
+    "conditions": [
+      "magnetically coupled coils"
+    ],
+    "common_traps": [
+      "dot convention determines sign of M term",
+      "k cannot exceed 1"
+    ]
+  },
+  {
+    "id": "circuits-transient-1",
+    "subject": "circuits",
+    "topic": "transient_three_element",
+    "keywords": [
+      "transient",
+      "three-element",
+      "time constant",
+      "三要素法",
+      "暂态"
+    ],
+    "formula": "f(t) = f(∞) + [f(0+) - f(∞)] * e^(-t/τ)",
+    "conditions": [
+      "first-order RC or RL circuit",
+      "DC or step excitation"
+    ],
+    "common_traps": [
+      "wrong initial condition f(0+)",
+      "RC: τ=RC, RL: τ=L/R"
+    ]
+  },
+  {
+    "id": "circuits-resonance-1",
+    "subject": "circuits",
+    "topic": "resonance",
+    "keywords": [
+      "resonance",
+      "RLC",
+      "series",
+      "parallel",
+      "谐振"
+    ],
+    "formula": "ω0 = 1/√(LC),  Q = ω0*L/R (series) = R/(ω0*L) (parallel)",
+    "conditions": [
+      "undamped natural frequency when X_L = X_C"
+    ],
+    "common_traps": [
+      "series vs parallel Q formulas differ",
+      "bandwidth = ω0/Q"
+    ]
+  },
+  {
+    "id": "circuits-threephase-1",
+    "subject": "circuits",
+    "topic": "three_phase",
+    "keywords": [
+      "three-phase",
+      "Y",
+      "Δ",
+      "line",
+      "phase",
+      "三相"
+    ],
+    "formula": "Y: V_line = √3*V_phase, I_line = I_phase;  Δ: V_line = V_phase, I_line = √3*I_phase",
+    "conditions": [
+      "balanced three-phase system"
+    ],
+    "common_traps": [
+      "Y vs Δ voltage/current relationships differ",
+      "power factor affects total power"
+    ]
+  },
+  {
+    "id": "circuits-power-conservation-1",
+    "subject": "circuits",
+    "topic": "power_conservation",
+    "keywords": [
+      "power",
+      "conservation",
+      "tellegen",
+      "功率守恒"
+    ],
+    "formula": "Σ p_k = 0  (sum of all element powers = 0)",
+    "conditions": [
+      "any lumped circuit"
+    ],
+    "common_traps": [
+      "passive sign convention: p>0 means absorbed",
+      "source power is negative when delivering"
+    ]
+  },
+  {
+    "id": "circuits-dc-ac-separation-1",
+    "subject": "circuits",
+    "topic": "dc_ac_superposition",
+    "keywords": [
+      "DC",
+      "AC",
+      "superposition",
+      "non-sinusoidal",
+      "直流交流分离"
+    ],
+    "formula": "DC: C→open, L→short;  AC: C→1/(jωC), L→jωL",
+    "conditions": [
+      "circuit with DC + AC sources"
+    ],
+    "common_traps": [
+      "impedance depends on frequency",
+      "DC and AC must be computed separately"
+    ]
+  },
+  {
+    "id": "linalg-gauss-1",
+    "subject": "linalg",
+    "topic": "gauss_elimination",
+    "keywords": [
+      "gauss",
+      "elimination",
+      "row reduction",
+      "消元法",
+      "初等行变换"
+    ],
+    "formula": "Three elementary row operations: swap rows, multiply row by nonzero scalar, add multiple of row to another",
+    "conditions": [
+      "any linear system Ax=b"
+    ],
+    "common_traps": [
+      "forgetting to apply same operations to RHS b",
+      "pivot may need row swap"
+    ]
+  },
+  {
+    "id": "linalg-augmented-1",
+    "subject": "linalg",
+    "topic": "augmented_matrix_solution",
+    "keywords": [
+      "augmented",
+      "rank",
+      "solution",
+      "增广矩阵",
+      "解的情况"
+    ],
+    "formula": "rank(A) < rank([A|b]) → no solution; rank(A) = rank([A|b]) = n → unique; rank(A) = rank([A|b]) < n → infinite",
+    "conditions": [
+      "linear system Ax=b"
+    ],
+    "common_traps": [
+      "counting pivot columns vs total columns",
+      "consistency requires equal ranks"
+    ]
+  },
+  {
+    "id": "linalg-cramer-1",
+    "subject": "linalg",
+    "topic": "cramers_rule",
+    "keywords": [
+      "cramer",
+      "determinant",
+      "solve",
+      "克拉默法则"
+    ],
+    "formula": "x_i = det(A_i) / det(A),  where A_i replaces column i with b",
+    "conditions": [
+      "det(A) ≠ 0",
+      "square system"
+    ],
+    "common_traps": [
+      "computationally expensive for large n",
+      "must not have det(A)=0"
+    ]
+  },
+  {
+    "id": "linalg-independence-1",
+    "subject": "linalg",
+    "topic": "linear_independence",
+    "keywords": [
+      "independence",
+      "dependence",
+      "basis",
+      "线性相关",
+      "线性无关"
+    ],
+    "formula": "c1*v1 + ... + cn*vn = 0 has only trivial solution c_i=0",
+    "conditions": [
+      "set of vectors"
+    ],
+    "common_traps": [
+      "confusing linear dependence with zero determinant",
+      "vectors can be dependent even if none is a scalar multiple"
+    ]
+  },
+  {
+    "id": "linalg-solution-structure-1",
+    "subject": "linalg",
+    "topic": "solution_structure",
+    "keywords": [
+      "general solution",
+      "particular",
+      "homogeneous",
+      "解的结构"
+    ],
+    "formula": "x = x_particular + c1*v1 + ... + ck*vk (where v_i are homogeneous basis solutions)",
+    "conditions": [
+      "consistent linear system Ax=b"
+    ],
+    "common_traps": [
+      "forgetting the particular solution",
+      "dimension of nullspace = n - rank(A)"
+    ]
+  },
+  {
+    "id": "linalg-matrix-poly-inv-1",
+    "subject": "linalg",
+    "topic": "matrix_polynomial_inverse",
+    "keywords": [
+      "polynomial",
+      "inverse",
+      "cayley-hamilton",
+      "矩阵多项式求逆"
+    ],
+    "formula": "If A²+pA+qI=0 and q≠0, then A^(-1) = -(A+pI)/q",
+    "conditions": [
+      "A satisfies a polynomial equation with nonzero constant term"
+    ],
+    "common_traps": [
+      "only works when constant term ≠ 0",
+      "sign errors in polynomial coefficients"
+    ]
+  },
+  {
+    "id": "linalg-laplace-1",
+    "subject": "linalg",
+    "topic": "laplace_expansion",
+    "keywords": [
+      "laplace",
+      "cofactor",
+      "expansion",
+      "拉普拉斯展开"
+    ],
+    "formula": "det(A) = Σ(-1)^(i+j) * a_ij * M_ij  (expansion along row i)",
+    "conditions": [
+      "square matrix of any size"
+    ],
+    "common_traps": [
+      "sign pattern (-1)^(i+j) for cofactor",
+      "minor vs cofactor distinction"
+    ]
+  },
+  {
+    "id": "linalg-invertibility-1",
+    "subject": "linalg",
+    "topic": "matrix_invertibility",
+    "keywords": [
+      "invertible",
+      "nonsingular",
+      "conditions",
+      "可逆条件"
+    ],
+    "formula": "Equivalent: det(A)≠0, rank(A)=n, columns linearly independent, Ax=0 has only trivial solution",
+    "conditions": [
+      "n×n square matrix"
+    ],
+    "common_traps": [
+      "only square matrices can be invertible",
+      "some conditions only apply to square matrices"
+    ]
+  },
+  {
+    "id": "linalg-det-properties-1",
+    "subject": "linalg",
+    "topic": "determinant_properties",
+    "keywords": [
+      "determinant",
+      "properties",
+      "row swap",
+      "行列式性质"
+    ],
+    "formula": "Row swap: det→-det; Row scaling by k: det→k*det; Add multiple: det unchanged; det(kA)=k^n*det(A)",
+    "conditions": [
+      "square matrix, elementary row operations"
+    ],
+    "common_traps": [
+      "det(kA) = k^n*det(A), not k*det(A)",
+      "row and column operations have same effect on determinant"
+    ]
+  },
+  {
+    "id": "linalg-vandermonde-1",
+    "subject": "linalg",
+    "topic": "special_determinants",
+    "keywords": [
+      "vandermonde",
+      "circulant",
+      "special matrix",
+      "范德蒙德"
+    ],
+    "formula": "Vandermonde det = ∏_{i<j} (x_j - x_i)",
+    "conditions": [
+      "matrix with rows [1, x_i, x_i², ..., x_i^(n-1)]"
+    ],
+    "common_traps": [
+      "ordering matters for sign",
+      "applicable only to Vandermonde structure"
+    ]
   }
 ]

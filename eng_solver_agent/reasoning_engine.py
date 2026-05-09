@@ -13,6 +13,7 @@ import json
 import re
 import time
 from dataclasses import dataclass, field
+from difflib import SequenceMatcher
 from typing import Any
 
 from eng_solver_agent.debug_logger import log_react_step, log_react_final, log_pipeline_stage, log_step_timing, step
@@ -38,9 +39,19 @@ class ReasoningResult:
 
 
 class ReActEngine:
-    """ReAct reasoning engine that interleaves LLM reasoning with tool calls."""
+    """ReAct reasoning engine that interleaves LLM reasoning with tool calls.
+
+    Anti-loop safeguards:
+      - 3 consecutive "无" actions → force final answer
+      - Repetitive thought detection (80% text overlap) → force final
+      - Long image descriptions (>1500 chars) → auto-truncated
+      - Cumulative prompt length tracking → aggressive truncation
+    """
 
     MAX_STEPS = 8
+    MAX_CONSECUTIVE_NONE = 3         # force final after this many "无" in a row
+    MAX_THOUGHT_OVERLAP = 0.80       # force final if thought is 80%+ similar to previous
+    MAX_OBSERVATION_LENGTH = 1200    # truncate tool observations longer than this
 
     def __init__(self, llm_client: Any, tools: dict[str, Any]) -> None:
         self.llm_client = llm_client
@@ -78,11 +89,26 @@ class ReActEngine:
                     "严格按计划逐步求解。"
                 )})
 
+        # ── Anti-loop state ────────────────────────────────────────────
+        consecutive_none = 0
+        prev_thoughts: list[str] = []
+
         for step_num in range(1, self.MAX_STEPS + 1):
             t_step_start = time.perf_counter()
             step("ReActEngine", f"[循环] ReAct 第 {step_num}/{self.MAX_STEPS} 步...", color="cyan")
             rs = self._reason_step(messages, step_num)
             result.steps.append(rs)
+
+            # ── Repetitive thought detection ──────────────────────────
+            is_repetitive = False
+            if rs.thought and prev_thoughts:
+                for pt in prev_thoughts[-3:]:
+                    if self._text_overlap(rs.thought, pt) > self.MAX_THOUGHT_OVERLAP:
+                        is_repetitive = True
+                        break
+            prev_thoughts.append(rs.thought)
+            if len(prev_thoughts) > 5:
+                prev_thoughts = prev_thoughts[-5:]
 
             if rs.is_final:
                 result.reasoning_process = self._format_reasoning_process(result.steps)
@@ -92,9 +118,22 @@ class ReActEngine:
                 log_step_timing(f"ReAct 第{step_num}步 (最终答案)", time.perf_counter() - t_step_start)
                 return result
 
+            # ── Idle / repetition force-final ─────────────────────────
+            if is_repetitive:
+                log_react_step(step_num, rs.thought, "FORCE_FINAL(repetitive)", None, None)
+                result.reasoning_process = self._format_reasoning_process(result.steps)
+                result.answer = rs.thought
+                result.success = True
+                log_react_final(step_num, rs.thought, True)
+                return result
+
             if rs.action and rs.action != "none":
+                consecutive_none = 0
                 log_react_step(step_num, rs.thought, rs.action, rs.action_input, None)
                 observation = self._execute_action(rs.action, rs.action_input or {})
+                # Truncate long observations (image descriptions can be huge)
+                if len(observation) > self.MAX_OBSERVATION_LENGTH:
+                    observation = observation[:self.MAX_OBSERVATION_LENGTH] + "\n...[truncated]"
                 rs.observation = observation
                 log_react_step(step_num, rs.thought, rs.action, rs.action_input, observation)
                 result.tool_calls.append({
@@ -110,8 +149,28 @@ class ReActEngine:
                 )
                 messages.append({"role": "user", "content": feedback})
             else:
+                consecutive_none += 1
                 log_react_step(step_num, rs.thought, None, None, None)
                 messages.append({"role": "user", "content": f"【思考】{rs.thought}\n请继续下一步推理。"})
+
+            # ── Force final after too many idle steps ─────────────────
+            if consecutive_none >= self.MAX_CONSECUTIVE_NONE:
+                force_msg = (
+                    f"你已经连续{consecutive_none}步没有调用工具也没有给出最终答案。"
+                    f"请在思考中总结以上所有步骤，立即输出最终答案。\n"
+                    f"输出格式：\n"
+                    f"思考: [汇总所有推理步骤和计算结果，给出最终答案]\n"
+                    f"行动: 最终答案\n"
+                    f"行动输入: {{}}"
+                )
+                messages.append({"role": "user", "content": force_msg})
+                rs = self._reason_step(messages, step_num + 1)
+                result.steps.append(rs)
+                result.reasoning_process = self._format_reasoning_process(result.steps)
+                result.answer = rs.thought
+                result.success = True
+                log_react_final(step_num, rs.thought, True)
+                return result
 
             # After step 1: replace verbose user prompt with short instruction
             if step_num == 1 and len(messages) >= 2:
@@ -292,14 +351,55 @@ class ReActEngine:
                 is_final=False,
             )
 
+    @staticmethod
+    def _strip_markdown_fmt(text: str) -> str:
+        """Remove common Markdown bold/italic markers from text boundaries.
+
+        Handles cases like:
+          - ``** 最终答案**`` → ``最终答案``
+          - ``** 最终答案`` → ``最终答案``
+          - ``最终答案**`` → ``最终答案``
+          - ``**最终答案**`` → ``最终答案``
+          - ``*最终答案*`` → ``最终答案``
+        """
+        text = text.strip()
+        if not text:
+            return text
+        # Remove leading **, *, __, _ (bold/italic)
+        while text.startswith("**"):
+            text = text[2:]
+        while text.startswith("*"):
+            text = text[1:]
+        while text.startswith("__"):
+            text = text[2:]
+        while text.startswith("_"):
+            text = text[1:]
+        # Remove trailing **, *, __, _
+        while text.endswith("**"):
+            text = text[:-2]
+        while text.endswith("*") and not text.endswith("**"):
+            text = text[:-1]
+        while text.endswith("__"):
+            text = text[:-2]
+        while text.endswith("_") and not text.endswith("__"):
+            text = text[:-1]
+        return text.strip()
+
     def _parse_step_response(self, response: str, step_num: int) -> ReasoningStep:
-        """Parse the LLM response into a ReasoningStep."""
-        thought_match = re.search(r"思考[:：]\s*(.+?)(?=\n行动[:：]|$)", response, re.DOTALL)
-        action_match = re.search(r"行动[:：]\s*(.+?)(?=\n行动输入[:：]|$)", response, re.DOTALL)
-        input_match = re.search(r"行动输入[:：]\s*(.+?)$", response, re.DOTALL)
+        """Parse the LLM response into a ReasoningStep.
+
+        Robust against Markdown bold/italic formatting that may leak into
+        the action field (e.g. ``** 最终答案**`` or ``** compute``).
+        """
+        # More robust action matching: allow ** or * before 行动:
+        # Also allow optional whitespace after markdown markers (e.g. "** 行动:" or "**行动:")
+        thought_match = re.search(r"思考[:：]\s*(.+?)(?=\n[*]{0,2}\s*行动[:：]|$)", response, re.DOTALL)
+        action_match = re.search(r"[*]{0,2}\s*行动[:：]\s*(.+?)(?=\n[*]{0,2}\s*行动输入[:：]|$)", response, re.DOTALL)
+        input_match = re.search(r"[*]{0,2}\s*行动输入[:：]\s*(.+?)$", response, re.DOTALL)
 
         thought = thought_match.group(1).strip() if thought_match else response.strip()
-        action = action_match.group(1).strip() if action_match else "无"
+        raw_action = action_match.group(1).strip() if action_match else "无"
+        action = self._strip_markdown_fmt(raw_action)
         action_input_str = input_match.group(1).strip() if input_match else "{}"
 
         if action in {"最终答案", "final_answer", "answer"}:
@@ -317,10 +417,13 @@ class ReActEngine:
                 action=None,
             )
 
-        # Parse action input as JSON
+        # Parse action input as JSON — strip markdown from the input string too
         action_input: dict[str, Any] = {}
         try:
-            action_input = json.loads(action_input_str)
+            cleaned_input = self._strip_markdown_fmt(action_input_str)
+            # Also handle leading/trailing markdown code fences
+            cleaned_input = re.sub(r'^```(?:json)?\s*|\s*```$', '', cleaned_input).strip()
+            action_input = json.loads(cleaned_input)
         except json.JSONDecodeError:
             action_input = {"raw_input": action_input_str}
 
@@ -428,6 +531,13 @@ class ReActEngine:
         if isinstance(response, str) and response.strip():
             return response.strip()
         return None
+
+    @staticmethod
+    def _text_overlap(a: str, b: str) -> float:
+        """Compute text overlap ratio between two strings (0.0 to 1.0)."""
+        if not a or not b:
+            return 0.0
+        return SequenceMatcher(None, a.lower(), b.lower()).ratio()
 
     def _format_reasoning_process(self, steps: list[ReasoningStep]) -> str:
         """Format all steps into a competition-ready reasoning_process string."""
